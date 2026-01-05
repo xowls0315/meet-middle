@@ -1,8 +1,21 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "SchoolSafetyWing";
+  src: url("/Hakgyoansim_NalgaeR.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #1e293b;
+  --gradient-start: #3b82f6;
+  --gradient-end: #1e40af;
+  --gradient-light: #dbeafe;
+  --gradient-mid: #93c5fd;
+  --font-school-safety: "SchoolSafetyWing", sans-serif;
 }
 
 @theme inline {
@@ -12,15 +25,57 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: linear-gradient(135deg, #b2e2ff 0%, #dbeafe 50%, #bfdbfe 100%);
+  background-attachment: fixed;
+  min-height: 100%;
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(135deg, #b2e2ff 0%, #dbeafe 50%, #bfdbfe 100%);
+  background-attachment: fixed;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-school-safety), system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* 그라데이션 유틸리티 클래스 */
+.gradient-bg {
+  background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
+}
+
+.gradient-bg-light {
+  background: linear-gradient(135deg, var(--gradient-light) 0%, var(--gradient-mid) 100%);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gradient-end);
+}
+
+/* React Loading Skeleton 커스텀 스타일 */
+.react-loading-skeleton {
+  background-color: #e2e8f0 !important;
+  background-image: linear-gradient(90deg, #e2e8f0 0px, #f1f5f9 40px, #e2e8f0 80px) !important;
 }
