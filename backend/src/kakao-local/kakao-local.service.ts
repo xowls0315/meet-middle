@@ -51,7 +51,7 @@ export class KakaoLocalService {
     this.restApiKey = this.configService.get<string>('KAKAO_REST_KEY') || '';
 
     if (!this.restApiKey) {
-      this.logger.warn('KAKAO_REST_KEY is not set');
+      this.logger.error('KAKAO_REST_KEY is not set. Kakao Local API calls will fail.');
     }
 
     this.httpClient = axios.create({
@@ -77,6 +77,16 @@ export class KakaoLocalService {
           },
         },
       );
+
+      // 디버깅: 실제 카카오 API 응답 로깅
+      if (response.data.documents.length > 0) {
+        this.logger.debug(
+          `Kakao API place_url example: ${response.data.documents[0].place_url}`,
+        );
+        this.logger.debug(
+          `Kakao API place_id example: ${response.data.documents[0].id}`,
+        );
+      }
 
       const places = this.normalizeKeywordResults(response.data.documents);
       logKakaoCall('searchKeyword', { query, size }, places);
@@ -117,6 +127,16 @@ export class KakaoLocalService {
         },
       );
 
+      // 디버깅: 실제 카카오 API 응답 로깅
+      if (response.data.documents.length > 0) {
+        this.logger.debug(
+          `Kakao API place_url example: ${response.data.documents[0].place_url}`,
+        );
+        this.logger.debug(
+          `Kakao API place_id example: ${response.data.documents[0].id}`,
+        );
+      }
+
       const places = this.normalizeCategoryResults(response.data.documents);
       logKakaoCall(
         'searchCategory',
@@ -152,7 +172,7 @@ export class KakaoLocalService {
       address: doc.road_address_name || doc.address_name,
       lat: parseFloat(doc.y),
       lng: parseFloat(doc.x),
-      placeUrl: doc.place_url,
+      placeUrl: this.normalizePlaceUrl(doc.place_url, doc.id),
     }));
   }
 
@@ -168,9 +188,32 @@ export class KakaoLocalService {
       address: doc.road_address_name || doc.address_name,
       lat: parseFloat(doc.y),
       lng: parseFloat(doc.x),
-      placeUrl: doc.place_url,
+      placeUrl: this.normalizePlaceUrl(doc.place_url, doc.id),
       distance: doc.distance ? Number(doc.distance) : undefined,
     }));
+  }
+
+  /**
+   * 카카오 placeUrl 정규화
+   * 카카오 API의 place_url이 없거나 잘못된 형식일 경우 올바른 형식으로 생성
+   */
+  private normalizePlaceUrl(placeUrl: string | undefined, placeId: string): string {
+    // place_url이 있고 올바른 형식이면 그대로 사용
+    if (placeUrl && placeUrl.startsWith('http')) {
+      // 카카오 place_url 형식 검증 및 수정
+      // 카카오 API는 때때로 http://place.map.kakao.com/{place_id} 형식으로 반환하지만
+      // 실제로는 http://place.map.kakao.com/m/{place_id} 형식이 필요함
+      if (placeUrl.includes('place.map.kakao.com') && !placeUrl.includes('/m/')) {
+        // /m/ 경로가 없으면 추가
+        const placeIdFromUrl = placeUrl.split('/').pop() || placeId;
+        return `http://place.map.kakao.com/m/${placeIdFromUrl}`;
+      }
+      return placeUrl;
+    }
+
+    // place_url이 없거나 잘못된 형식이면 placeId로부터 생성
+    // 카카오 장소 URL 형식: http://place.map.kakao.com/m/{place_id}
+    return `http://place.map.kakao.com/m/${placeId}`;
   }
 }
 
