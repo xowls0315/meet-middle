@@ -51,10 +51,13 @@ import { FavoritesModule } from './favorites/favorites.module';
         limit: 10, // recommend/share용
       },
     ]),
-    // 캐시 설정
-    CacheModule.register({
+    // 캐시 설정 (인메모리 캐시)
+    CacheModule.registerAsync({
       isGlobal: true,
-      ttl: 60, // 기본 60초
+      useFactory: () => ({
+        ttl: 60, // 기본 60초
+        max: 100, // 최대 캐시 항목 수
+      }),
     }),
     // 기능 모듈
     KakaoLocalModule,

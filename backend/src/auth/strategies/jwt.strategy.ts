@@ -22,6 +22,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
+    // Access Token만 허용 (type 검증)
+    if (payload.type !== 'access') {
+      throw new UnauthorizedException('Invalid token type');
+    }
+
     const user = await this.authService.validateUser(payload.sub);
     if (!user) {
       throw new UnauthorizedException();

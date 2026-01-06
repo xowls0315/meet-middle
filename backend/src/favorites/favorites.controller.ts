@@ -13,7 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FavoritesService } from './favorites.service';
 import { CreateFavoriteDto } from './dto/create-favorite.dto';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
-import { Request } from 'express';
+import type { Request } from 'express';
 
 @Controller('api/favorites')
 @UseGuards(JwtAuthGuard)

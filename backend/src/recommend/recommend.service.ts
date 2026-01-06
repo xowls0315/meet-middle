@@ -1,6 +1,6 @@
 import { Injectable, Inject, BadRequestException, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import type { Cache } from 'cache-manager';
 import { KakaoLocalService } from '../kakao-local/kakao-local.service';
 import { PlaceDto } from '../common/dto/place.dto';
 import { logRecommendAttempt } from '../common/decorators/api-log.decorator';
@@ -11,7 +11,7 @@ interface Participant {
   lng: number;
 }
 
-interface RecommendResult {
+export interface RecommendResult {
   anchor: { lat: number; lng: number };
   final: PlaceDto | null;
   candidates: PlaceDto[];
