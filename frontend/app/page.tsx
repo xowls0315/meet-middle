@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import ParticipantInput from "@/components/ParticipantInput";
 import ResultCard from "@/components/ResultCard";
 import MapArea from "@/components/MapArea";
@@ -11,6 +12,7 @@ import { HiOutlineSave } from "react-icons/hi";
 import { HiOutlineStar } from "react-icons/hi";
 import { FaRegLightbulb } from "react-icons/fa6";
 import { MdRecommend } from "react-icons/md";
+import { VscBook } from "react-icons/vsc";
 
 interface Place {
   placeId: string;
@@ -180,9 +182,16 @@ export default function Home() {
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       {/* 헤더 섹션 */}
       <div className="text-center mb-8">
-        <h1 className="text-4xl md:text-5xl font-bold gradient-text mb-4">만나</h1>
-        <p className="text-lg text-slate-600">2~4명의 출발지를 입력하면 최적의 만남 장소를 추천해드립니다</p>
+        <h1 className="text-4xl md:text-5xl font-bold gradient-text mb-4">Meet-Middle</h1>
+        <p className="text-lg font-bold text-slate-600">2~4명의 출발지를 입력하면 최적의 만남 장소를 추천해드립니다</p>
         <p className="text-sm text-slate-500 mt-2">완전 무료 서비스 | 자동완성 최적화로 빠르고 효율적으로</p>
+        <Link
+          href="/guide"
+          className="inline-flex items-center gap-2 mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+        >
+          <VscBook />
+          처음 사용하시나요? 가이드 보기
+        </Link>
       </div>
 
       {/* 참가자 수 선택 */}

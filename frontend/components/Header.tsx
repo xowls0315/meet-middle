@@ -11,19 +11,22 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b border-blue-200/50 bg-white/80 backdrop-blur-md shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 cursor-pointer transition-all duration-500 hover:scale-105">
-          <h1 className="text-2xl font-bold gradient-text">만나</h1>
+          <h1 className="text-2xl font-bold gradient-text">Meet-Middle</h1>
           <span className="text-sm text-slate-600 hidden sm:inline">약속 장소 중간지점 추천</span>
         </Link>
 
         <nav className="flex items-center gap-4">
+          <Link href="/guide" className="px-6 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 transition-all">
+            가이드
+          </Link>
           {isLoggedIn && user ? (
             <>
-              <a href="/history" className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors">
+              <Link href="/history" className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors">
                 기록
-              </a>
-              <a href="/favorites" className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors">
+              </Link>
+              <Link href="/favorites" className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors">
                 즐겨찾기
-              </a>
+              </Link>
               <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">{user.name?.[0] || "U"}</div>
                 <span className="text-sm font-medium text-slate-700 hidden sm:inline">{user.name || "사용자"}</span>
