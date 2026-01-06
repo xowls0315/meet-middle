@@ -77,5 +77,22 @@
 --CREATE INDEX IF NOT EXISTS idx_favorites_created_at ON favorites("createdAt" DESC);
 
 -- ============================================
+-- Refresh Token 컬럼 추가 마이그레이션
+-- ============================================
+
+-- users 테이블에 refreshToken 컬럼 추가
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS "refreshToken" VARCHAR(500) NULL;
+
+-- refreshToken 인덱스 추가 (선택사항, 조회 성능 향상)
+CREATE INDEX IF NOT EXISTS idx_users_refresh_token ON users("refreshToken") 
+WHERE "refreshToken" IS NOT NULL;
+
+-- ============================================
+-- 마이그레이션 완료
+-- ============================================
+
+
+-- ============================================
 -- 데이터베이스 스키마 생성 완료
 -- ============================================

@@ -13,7 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MeetingsService } from './meetings.service';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
-import { Request } from 'express';
+import type { Request } from 'express';
 
 @Controller('api/meetings')
 @UseGuards(JwtAuthGuard)

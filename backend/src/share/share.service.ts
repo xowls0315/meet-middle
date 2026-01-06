@@ -4,7 +4,7 @@ import { Repository, LessThan } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { Share } from './entities/share.entity';
 
-interface ShareData {
+export interface ShareData {
   anchor: { lat: number; lng: number };
   participants: Array<{ label: string; lat: number; lng: number }>;
   final: {
@@ -37,12 +37,10 @@ export class ShareService {
     private shareRepository: Repository<Share>,
   ) {}
 
-  async create(data: ShareData): Promise<{ shareId: string; shareUrl: string }> {
-    // 데이터 최소화: candidates 최대 10개 제한
+  async create(data: ShareData): Promise<{ shareId: string; url: string }> {
+    // 데이터 최소화: candidates 최대 10개 제한 및 좌표 소수점 6자리 제한
     const normalizedData: ShareData = {
       ...data,
-      candidates: data.candidates.slice(0, 10),
-      // 좌표 소수점 6자리 제한
       anchor: {
         lat: Number(data.anchor.lat.toFixed(6)),
         lng: Number(data.anchor.lng.toFixed(6)),
