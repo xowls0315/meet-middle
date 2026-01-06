@@ -9,12 +9,21 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiExcludeEndpoint,
+} from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
 
+@ApiTags('auth')
 @Controller('api/auth')
 @UseInterceptors(LoggingInterceptor)
 export class AuthController {
@@ -22,14 +31,31 @@ export class AuthController {
 
   @Get('kakao')
   @Public()
-  @UseGuards(AuthGuard('kakao'))
-  async kakaoAuth() {
-    // Passport가 리다이렉트 처리
+  @ApiExcludeEndpoint()
+  @ApiOperation({
+    summary: '카카오 로그인 시작',
+    description: '카카오 로그인 페이지로 리다이렉트합니다. prompt=login 파라미터로 항상 로그인 화면을 표시합니다.',
+  })
+  async kakaoAuth(@Res() res: Response) {
+    // 카카오 로그인 URL 직접 생성 (prompt=login 명시적으로 추가)
+    const clientID = process.env.KAKAO_CLIENT_ID || '';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+    const callbackURL = `${backendUrl}/api/auth/kakao/callback`;
+    
+    // prompt=login: 항상 로그인 화면 표시 (자동 로그인 방지)
+    const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${clientID}&redirect_uri=${encodeURIComponent(callbackURL)}&response_type=code&prompt=login`;
+    
+    res.redirect(kakaoAuthUrl);
   }
 
   @Get('kakao/callback')
   @Public()
   @UseGuards(AuthGuard('kakao'))
+  @ApiExcludeEndpoint()
+  @ApiOperation({
+    summary: '카카오 로그인 콜백',
+    description: '카카오 로그인 후 콜백을 처리합니다.',
+  })
   async kakaoCallback(@Req() req: Request, @Res() res: Response) {
     try {
       const user = req.user as any;
@@ -42,16 +68,18 @@ export class AuthController {
       // Access Token 쿠키 설정 (15분)
       res.cookie('access_token', accessToken, {
         httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
+        secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
+        domain: process.env.COOKIE_DOMAIN || undefined,
         maxAge: 15 * 60 * 1000, // 15분
       });
 
       // Refresh Token 쿠키 설정 (14일)
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
+        secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
+        domain: process.env.COOKIE_DOMAIN || undefined,
         maxAge: 14 * 24 * 60 * 60 * 1000, // 14일
       });
 
@@ -66,6 +94,28 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiCookieAuth('access_token')
+  @ApiOperation({
+    summary: '현재 사용자 정보 조회',
+    description: '로그인한 사용자의 정보를 조회합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '사용자 정보',
+    schema: {
+      example: {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        name: '홍길동',
+        email: 'hong@example.com',
+        profileImage: 'https://k.kakaocdn.net/...',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
   async getProfile(@Req() req: Request) {
     const user = req.user as any;
     return {
@@ -78,6 +128,23 @@ export class AuthController {
 
   @Post('refresh')
   @Public()
+  @ApiOperation({
+    summary: 'Access Token 갱신',
+    description: 'Refresh Token을 사용하여 새로운 Access Token을 발급받습니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '토큰 갱신 성공',
+    schema: {
+      example: {
+        success: true,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Refresh Token이 없거나 유효하지 않음',
+  })
   async refresh(@Req() req: Request, @Res() res: Response) {
     const refreshToken = req.cookies['refresh_token'];
     if (!refreshToken) {
@@ -89,8 +156,9 @@ export class AuthController {
     // 새로운 Access Token 쿠키 설정
     res.cookie('access_token', newAccessToken, {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
+      secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
+      domain: process.env.COOKIE_DOMAIN || undefined,
       maxAge: 15 * 60 * 1000, // 15분
     });
 
@@ -99,6 +167,21 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiCookieAuth('access_token')
+  @ApiOperation({
+    summary: '로그아웃',
+    description:
+      '로그아웃하고 Refresh Token을 제거합니다. 카카오 세션도 함께 로그아웃하기 위해 카카오 로그아웃 URL로 리다이렉트합니다.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: '카카오 로그아웃 URL로 리다이렉트',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
   async logout(@Req() req: Request, @Res() res: Response) {
     const user = req.user as any;
 
@@ -108,16 +191,26 @@ export class AuthController {
     // 쿠키 제거 (옵션 명시로 확실히 제거)
     res.clearCookie('access_token', {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
+      secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
+      domain: process.env.COOKIE_DOMAIN || undefined,
     });
     res.clearCookie('refresh_token', {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
+      secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
+      domain: process.env.COOKIE_DOMAIN || undefined,
     });
 
-    res.json({ message: '로그아웃 완료' });
+    // 카카오 로그아웃 URL 생성 및 직접 리다이렉트
+    // ⚠️ 중요: 카카오 개발자 콘솔에 로그아웃 리다이렉트 URI를 등록해야 함
+    // 제품 설정 → 카카오 로그인 → 로그아웃 리다이렉트 URI
+    const clientID = process.env.KAKAO_CLIENT_ID || '';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const kakaoLogoutUrl = `https://kauth.kakao.com/oauth/logout?client_id=${clientID}&logout_redirect_uri=${encodeURIComponent(frontendUrl)}`;
+
+    // 카카오 로그아웃 URL로 직접 리다이렉트 (카카오 세션도 함께 종료)
+    res.redirect(kakaoLogoutUrl);
   }
 }
 

@@ -29,13 +29,34 @@ import { FavoritesModule } from './favorites/favorites.module';
     // TypeORM 설정
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        url: configService.get<string>('DB_URL'),
-        entities: [User, Share, Meeting, Favorite],
-        synchronize: process.env.NODE_ENV !== 'production', // 개발 환경에서만 자동 동기화
-        logging: process.env.NODE_ENV === 'development',
-      }),
+      useFactory: (configService: ConfigService) => {
+        const dbUrl = configService.get<string>('DB_URL');
+        const isProduction = process.env.NODE_ENV === 'production';
+        const requireSSL = process.env.DB_SSL === 'true' || isProduction;
+
+        // DB_URL에서 SSL 요구사항 확인 (클라우드 DB는 대부분 SSL 필요)
+        const isCloudDB =
+          dbUrl?.includes('render.com') ||
+          dbUrl?.includes('neon.tech') ||
+          dbUrl?.includes('supabase.co') ||
+          dbUrl?.includes('railway.app') ||
+          dbUrl?.includes('herokuapp.com');
+
+        return {
+          type: 'postgres',
+          url: dbUrl,
+          entities: [User, Share, Meeting, Favorite],
+          synchronize: !isProduction, // 개발 환경에서만 자동 동기화
+          logging: process.env.NODE_ENV === 'development',
+          // SSL 설정 (클라우드 DB 또는 명시적으로 요구하는 경우)
+          ssl:
+            requireSSL || isCloudDB
+              ? {
+                  rejectUnauthorized: false, // 자체 서명 인증서 허용
+                }
+              : false,
+        };
+      },
       inject: [ConfigService],
     }),
     // Rate limiting 설정

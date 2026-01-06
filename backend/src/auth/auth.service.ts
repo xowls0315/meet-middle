@@ -16,14 +16,17 @@ export class AuthService {
    * Access Token과 Refresh Token 생성
    */
   generateTokens(userId: string) {
+    const accessExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
+    const refreshExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '14d';
+
     const accessToken = this.jwtService.sign(
       { sub: userId, type: 'access' },
-      { expiresIn: '15m' },
+      { expiresIn: accessExpiresIn },
     );
 
     const refreshToken = this.jwtService.sign(
       { sub: userId, type: 'refresh' },
-      { expiresIn: '14d' },
+      { expiresIn: refreshExpiresIn },
     );
 
     return { accessToken, refreshToken };
@@ -104,9 +107,10 @@ export class AuthService {
       }
 
       // 새로운 Access Token 발급
+      const accessExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
       return this.jwtService.sign(
         { sub: user.id, type: 'access' },
-        { expiresIn: '15m' },
+        { expiresIn: accessExpiresIn },
       );
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');

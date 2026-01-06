@@ -61,29 +61,41 @@ export class RecommendService {
         }
 
         try {
+          this.logger.debug(
+            `Attempt ${attempts}: Searching category ${category} with radius ${radius}m at (${anchor.lng}, ${anchor.lat})`,
+          );
+
           const results = await this.kakaoLocalService.searchCategory(
             category,
-            anchor.lng,
-            anchor.lat,
+            anchor.lng, // x: 경도
+            anchor.lat, // y: 위도
             radius,
             15,
+          );
+
+          this.logger.debug(
+            `Attempt ${attempts}: Found ${results.length} results`,
           );
 
           if (results.length > 0) {
             final = results[0];
             candidates = results.slice(0, 10); // 최대 10개
             used = { category, radius };
+            this.logger.log(
+              `Found landmark: ${final.name} using category ${category}, radius ${radius}m`,
+            );
             break;
           }
         } catch (error: any) {
           // 429 에러는 상위로 전파
           if (error.response?.status === 429) {
+            this.logger.error('Kakao API rate limit exceeded');
             throw error;
           }
-          // 다른 에러는 다음 시도
-          this.logger.warn(
-            `Category search failed: ${category}, radius: ${radius}`,
-            error.message,
+          // 다른 에러는 로깅하고 다음 시도
+          this.logger.error(
+            `Category search failed: ${category}, radius: ${radius}, error: ${error.message}`,
+            error.stack,
           );
         }
       }
@@ -91,6 +103,12 @@ export class RecommendService {
       if (final) {
         break;
       }
+    }
+
+    if (!final) {
+      this.logger.warn(
+        `No landmark found after ${attempts} attempts at anchor (${anchor.lat}, ${anchor.lng})`,
+      );
     }
 
     // 로깅: attempts, used category/radius, anchor 좌표
@@ -158,9 +176,10 @@ export class RecommendService {
     const sumLng = participants.reduce((sum, p) => sum + p.lng, 0);
     const count = participants.length;
 
+    // 좌표를 소수점 6자리로 반올림 (응답 형식에 맞춤)
     return {
-      lat: sumLat / count,
-      lng: sumLng / count,
+      lat: Number((sumLat / count).toFixed(6)),
+      lng: Number((sumLng / count).toFixed(6)),
     };
   }
 
