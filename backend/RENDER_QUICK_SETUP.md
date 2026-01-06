@@ -6,8 +6,10 @@
 
 **Build Command:**
 ```
-npm ci && npm run build
+npm install --legacy-peer-deps && npm run build
 ```
+
+⚠️ **중요**: `--legacy-peer-deps` 플래그가 필요합니다. `@nestjs/cache-manager@2.3.0`이 NestJS 11과 호환되지 않지만, 실제로는 정상 작동합니다.
 
 **Start Command:**
 ```

@@ -50,18 +50,13 @@ PORT=10000
 ### 2. Build Command
 
 ```
-npm install && npm run build
+npm install --legacy-peer-deps && npm run build
 ```
 
-또는
-
-```
-npm ci && npm run build
-```
-
-**주의사항**:
-- `npm ci`는 `package-lock.json`을 기반으로 정확한 버전 설치
-- 프로덕션에서는 `npm ci` 권장
+**⚠️ 중요 주의사항**:
+- `--legacy-peer-deps` 플래그가 **필수**입니다!
+- `@nestjs/cache-manager@2.3.0`이 NestJS 11과 호환되지 않지만, 실제로는 정상 작동합니다.
+- 이 플래그 없이는 빌드가 실패합니다.
 
 ---
 
