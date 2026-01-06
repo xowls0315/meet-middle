@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "만나 - 약속 장소 중간지점 추천",
+  title: "Meet-Middle - 약속 장소 중간지점 추천",
   description: "2~4명의 출발지를 입력하면 최적의 만남 장소를 추천해드립니다",
 };
 
