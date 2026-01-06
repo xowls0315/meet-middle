@@ -29,18 +29,18 @@ backend
 
 ### Build Command
 ```bash
-npm ci && npm run build
-```
-
-**또는**
-
-```bash
-npm install && npm run build
+npm install --legacy-peer-deps && npm run build
 ```
 
 **⚠️ 중요**: 
-- `npm ci`는 `package-lock.json`을 기반으로 정확한 버전 설치 (프로덕션 권장)
+- `--legacy-peer-deps` 플래그가 **필수**입니다!
+- `@nestjs/cache-manager@2.3.0`이 NestJS 11과 호환되지 않지만, 실제로는 정상 작동합니다.
 - Root Directory를 `backend`로 설정했으므로, `cd backend`는 필요 없습니다.
+
+**대안 (권장하지 않음):**
+```bash
+npm ci --legacy-peer-deps && npm run build
+```
 
 ### Start Command
 ```bash
