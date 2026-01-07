@@ -65,17 +65,8 @@ export class AuthController {
       const { accessToken, refreshToken, user: userData } =
         await this.authService.login(user);
 
-      // Access Token 쿠키 설정 (15분)
+      // Refresh Token만 쿠키에 저장 (보안 - HttpOnly로 XSS 방지)
       const isProduction = process.env.NODE_ENV === 'production';
-      res.cookie('access_token', accessToken, {
-        httpOnly: true,
-        sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax'),
-        secure: isProduction || process.env.COOKIE_SECURE === 'true',
-        domain: process.env.COOKIE_DOMAIN || undefined,
-        maxAge: 15 * 60 * 1000, // 15분
-      });
-
-      // Refresh Token 쿠키 설정 (14일)
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
         sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax'),
@@ -84,22 +75,61 @@ export class AuthController {
         maxAge: 14 * 24 * 60 * 60 * 1000, // 14일
       });
 
-      // 프론트엔드로 리다이렉트
+      // Access Token은 URL 파라미터로 전달 (프론트엔드가 메모리/localStorage에 저장)
+      // 프로덕션에서는 보안을 위해 URL 파라미터 사용 안 함
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      res.redirect(`${frontendUrl}/?login=success`);
+      if (isProduction) {
+        // 프로덕션: 쿠키만 사용 (보안)
+        // 프론트엔드는 /api/auth/token 엔드포인트를 호출하여 Access Token 받기
+        res.redirect(`${frontendUrl}/?login=success`);
+      } else {
+        // 개발 환경: URL 파라미터로 전달 (테스트용)
+        res.redirect(`${frontendUrl}/?login=success&access_token=${encodeURIComponent(accessToken)}`);
+      }
     } catch (error) {
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       res.redirect(`${frontendUrl}/?login=error`);
     }
   }
 
+  @Get('token')
+  @Public()
+  @ApiOperation({
+    summary: 'Access Token 발급',
+    description: 'Refresh Token(쿠키)을 사용하여 Access Token을 발급받습니다. 로그인 직후 또는 Access Token 만료 시 사용합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Access Token 발급 성공',
+    schema: {
+      example: {
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Refresh Token이 없거나 유효하지 않음',
+  })
+  async getToken(@Req() req: Request) {
+    const refreshToken = req.cookies['refresh_token'];
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token not found');
+    }
+
+    const accessToken = await this.authService.refresh(refreshToken);
+
+    return {
+      accessToken,
+    };
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '현재 사용자 정보 조회',
-    description: '로그인한 사용자의 정보를 조회합니다.',
+    description: '로그인한 사용자의 정보를 조회합니다. Authorization 헤더에 Access Token을 포함해야 합니다.',
   })
   @ApiResponse({
     status: 200,
@@ -131,14 +161,14 @@ export class AuthController {
   @Public()
   @ApiOperation({
     summary: 'Access Token 갱신',
-    description: 'Refresh Token을 사용하여 새로운 Access Token을 발급받습니다.',
+    description: 'Refresh Token(쿠키)을 사용하여 새로운 Access Token을 발급받습니다.',
   })
   @ApiResponse({
     status: 200,
     description: '토큰 갱신 성공',
     schema: {
       example: {
-        success: true,
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
       },
     },
   })
@@ -146,7 +176,7 @@ export class AuthController {
     status: 401,
     description: 'Refresh Token이 없거나 유효하지 않음',
   })
-  async refresh(@Req() req: Request, @Res() res: Response) {
+  async refresh(@Req() req: Request) {
     const refreshToken = req.cookies['refresh_token'];
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not found');
@@ -154,23 +184,15 @@ export class AuthController {
 
     const newAccessToken = await this.authService.refresh(refreshToken);
 
-    // 새로운 Access Token 쿠키 설정
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.cookie('access_token', newAccessToken, {
-      httpOnly: true,
-      sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax'),
-      secure: isProduction || process.env.COOKIE_SECURE === 'true',
-      domain: process.env.COOKIE_DOMAIN || undefined,
-      maxAge: 15 * 60 * 1000, // 15분
-    });
-
-    res.json({ success: true });
+    // Access Token을 JSON 응답으로 반환 (프론트엔드가 메모리/localStorage에 저장)
+    return {
+      accessToken: newAccessToken,
+    };
   }
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '로그아웃',
     description:
@@ -190,14 +212,8 @@ export class AuthController {
     // DB에서 Refresh Token 제거 (보안 핵심)
     await this.authService.logout(user.id);
 
-    // 쿠키 제거 (옵션 명시로 확실히 제거)
+    // Refresh Token 쿠키 제거
     const isProduction = process.env.NODE_ENV === 'production';
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax'),
-      secure: isProduction || process.env.COOKIE_SECURE === 'true',
-      domain: process.env.COOKIE_DOMAIN || undefined,
-    });
     res.clearCookie('refresh_token', {
       httpOnly: true,
       sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax'),

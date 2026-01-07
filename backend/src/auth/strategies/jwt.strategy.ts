@@ -22,14 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     super({
-      jwtFromRequest: ExtractJwt.fromExtractors([
-        // 1순위: Authorization Bearer 헤더
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
-        // 2순위: Cookie에서 access_token
-        (request: any) => {
-          return request?.cookies?.access_token;
-        },
-      ]),
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: jwtSecret || 'secret',
     });
