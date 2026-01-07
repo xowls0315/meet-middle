@@ -107,9 +107,11 @@ export default function Home() {
       await Promise.all(
         categories.map(async (category) => {
           try {
-            // 백엔드 API 호출 (현재는 카테고리 파라미터가 없어서 동일한 결과가 나올 수 있음)
-            // TODO: 백엔드에서 category 파라미터 지원 시 추가
-            const response = await recommend({ participants: requestData });
+            // 백엔드 API 호출 (카테고리 파라미터 전달)
+            const response = await recommend({
+              participants: requestData,
+              category: category.code as "SW8" | "CT1" | "PO3" | "AT4",
+            });
             results.set(category.code, response);
 
             // 첫 번째 결과를 기본 결과로 설정 (기존 호환성 유지)
