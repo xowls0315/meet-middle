@@ -6,30 +6,39 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
+  // 프로덕션 환경에서 필수 환경변수 검증
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    const requiredEnvVars = [
+      'DB_URL',
+      'KAKAO_REST_KEY',
+      'KAKAO_CLIENT_ID',
+      'KAKAO_CLIENT_SECRET',
+      'JWT_SECRET',
+      'BACKEND_URL',
+      'FRONTEND_URL',
+    ];
+
+    const missingVars = requiredEnvVars.filter((key) => !process.env[key]);
+    if (missingVars.length > 0) {
+      console.error('❌ Missing required environment variables:');
+      missingVars.forEach((key) => console.error(`   - ${key}`));
+      console.error('\nPlease set these environment variables in Render dashboard.');
+      process.exit(1);
+    }
+
+    // JWT_SECRET 보안 검증
+    if (process.env.JWT_SECRET === 'secret' || (process.env.JWT_SECRET?.length || 0) < 32) {
+      console.warn('⚠️  WARNING: JWT_SECRET is too weak. Use a strong random string (minimum 32 characters).');
+    }
+  }
+
   const app = await NestFactory.create(AppModule);
 
-  // CORS 설정 (cross-origin 쿠키 전송을 위한 설정)
-  const allowedOrigins = process.env.FRONTEND_URL
-    ? process.env.FRONTEND_URL.split(',').map((url) => url.trim())
-    : ['http://localhost:3000'];
-
+  // CORS 설정
   app.enableCors({
-    origin: (origin, callback) => {
-      // origin이 없으면 (같은 도메인 요청, Postman 등) 허용
-      if (!origin) return callback(null, true);
-
-      // 허용된 origin 목록에 있으면 허용
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        console.warn(`CORS blocked origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true, // ⭐ 쿠키 전송 허용
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-    exposedHeaders: ['Set-Cookie'],
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
   });
 
   // Cookie parser 미들웨어
