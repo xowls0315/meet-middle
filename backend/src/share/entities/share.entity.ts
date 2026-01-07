@@ -4,7 +4,10 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { User } from '../../auth/entities/user.entity';
 
 @Entity('shares')
 @Index(['expiresAt'])
@@ -39,6 +42,13 @@ export class Share {
     }>;
     used?: { category: string; radius: number };
   };
+
+  @Column({ nullable: true })
+  userId: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'userId' })
+  user: User | null;
 
   @CreateDateColumn()
   createdAt: Date;

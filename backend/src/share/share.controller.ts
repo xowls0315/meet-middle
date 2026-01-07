@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseInterceptors } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseInterceptors, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
@@ -7,6 +7,7 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { ShareService } from './share.service';
 import { CreateShareDto } from './dto/create-share.dto';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
@@ -45,8 +46,9 @@ export class ShareController {
     status: 429,
     description: '요청 한도 초과',
   })
-  async createShare(@Body() createShareDto: CreateShareDto) {
-    return this.shareService.create(createShareDto.data);
+  async createShare(@Body() createShareDto: CreateShareDto, @Req() req: Request) {
+    const user = req.user as any; // 로그인한 경우에만 존재
+    return this.shareService.create(createShareDto.data, user?.id);
   }
 
   @Get(':id')
@@ -80,6 +82,9 @@ export class ShareController {
           { label: 'A', lat: 37.5665, lng: 126.9780 },
           { label: 'B', lat: 37.5651, lng: 126.9895 },
         ],
+        user: {
+          name: '홍길동',
+        },
       },
     },
   })

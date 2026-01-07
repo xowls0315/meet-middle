@@ -8,6 +8,7 @@ import {
   IsNumber,
   Min,
   Max,
+  IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -50,5 +51,16 @@ export class CreateRecommendDto {
   @ValidateNested({ each: true })
   @Type(() => ParticipantDto)
   participants: ParticipantDto[];
+
+  @ApiProperty({
+    description: '카테고리 (선택적). 지정 시 해당 카테고리만 검색합니다.',
+    example: 'SW8',
+    enum: ['SW8', 'CT1', 'PO3', 'AT4'],
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['SW8', 'CT1', 'PO3', 'AT4'])
+  category?: 'SW8' | 'CT1' | 'PO3' | 'AT4';
 }
 

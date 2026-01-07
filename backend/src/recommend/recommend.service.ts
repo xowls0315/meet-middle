@@ -32,15 +32,21 @@ export class RecommendService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  async recommend(participants: Participant[]): Promise<RecommendResult> {
+  async recommend(
+    participants: Participant[],
+    category?: 'SW8' | 'CT1' | 'PO3' | 'AT4',
+  ): Promise<RecommendResult> {
     // Validation: participants 2~4명, label A~D 중복 없음, 좌표 유효 범위
     this.validateParticipants(participants);
 
     // Anchor 계산: 평균 좌표
     const anchor = this.calculateAnchor(participants);
 
+    // category가 지정된 경우 해당 카테고리만 검색, 없으면 모든 카테고리 순회
+    const categoriesToSearch = category ? [category] : CATEGORIES;
+
     // 캐시 확인 (anchor+category+radius 기준, TTL 5분)
-    const cacheKey = this.getCacheKey(anchor);
+    const cacheKey = this.getCacheKey(anchor, category);
     const cached = await this.cacheManager.get<RecommendResult>(cacheKey);
     if (cached) {
       return cached;
@@ -52,7 +58,7 @@ export class RecommendService {
     let candidates: PlaceDto[] = [];
     let used: { category: string; radius: number } | null = null;
 
-    for (const category of CATEGORIES) {
+    for (const cat of categoriesToSearch) {
       for (const radius of RADIUSES) {
         attempts++;
         if (attempts > MAX_ATTEMPTS) {
@@ -62,11 +68,11 @@ export class RecommendService {
 
         try {
           this.logger.debug(
-            `Attempt ${attempts}: Searching category ${category} with radius ${radius}m at (${anchor.lng}, ${anchor.lat})`,
+            `Attempt ${attempts}: Searching category ${cat} with radius ${radius}m at (${anchor.lng}, ${anchor.lat})`,
           );
 
           const results = await this.kakaoLocalService.searchCategory(
-            category,
+            cat,
             anchor.lng, // x: 경도
             anchor.lat, // y: 위도
             radius,
@@ -80,9 +86,9 @@ export class RecommendService {
           if (results.length > 0) {
             final = results[0];
             candidates = results.slice(0, 10); // 최대 10개
-            used = { category, radius };
+            used = { category: cat, radius };
             this.logger.log(
-              `Found landmark: ${final.name} using category ${category}, radius ${radius}m`,
+              `Found landmark: ${final.name} using category ${cat}, radius ${radius}m`,
             );
             break;
           }
@@ -94,7 +100,7 @@ export class RecommendService {
           }
           // 다른 에러는 로깅하고 다음 시도
           this.logger.error(
-            `Category search failed: ${category}, radius: ${radius}, error: ${error.message}`,
+            `Category search failed: ${cat}, radius: ${radius}, error: ${error.message}`,
             error.stack,
           );
         }
@@ -183,11 +189,17 @@ export class RecommendService {
     };
   }
 
-  private getCacheKey(anchor: { lat: number; lng: number }): string {
+  private getCacheKey(
+    anchor: { lat: number; lng: number },
+    category?: string,
+  ): string {
     // 좌표를 소수점 6자리로 반올림하여 캐시 키 생성
     const lat = anchor.lat.toFixed(6);
     const lng = anchor.lng.toFixed(6);
-    return `recommend:${lat},${lng}`;
+    // category가 있으면 캐시 키에 포함
+    return category
+      ? `recommend:${lat},${lng}:${category}`
+      : `recommend:${lat},${lng}`;
   }
 }
 
