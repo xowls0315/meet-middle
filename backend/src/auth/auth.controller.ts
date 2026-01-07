@@ -65,21 +65,28 @@ export class AuthController {
       const { accessToken, refreshToken, user: userData } =
         await this.authService.login(user);
 
+      // 쿠키 옵션 설정 (cross-origin 요청을 위한 설정)
+      const isProduction = process.env.NODE_ENV === 'production';
+      const cookieOptions = {
+        httpOnly: true,
+        // cross-origin 요청에서 쿠키 전송을 위해 'none' 사용 (HTTPS 필수)
+        sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax') as 'lax' | 'strict' | 'none',
+        // sameSite: 'none'일 때는 secure: true 필수
+        secure: isProduction || process.env.COOKIE_SECURE === 'true',
+        // 백엔드 도메인에 쿠키 설정 (cross-origin 요청 시 필요)
+        domain: process.env.COOKIE_DOMAIN || undefined,
+        path: '/',
+      };
+
       // Access Token 쿠키 설정 (15분)
       res.cookie('access_token', accessToken, {
-        httpOnly: true,
-        sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
-        secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
-        domain: process.env.COOKIE_DOMAIN || undefined,
+        ...cookieOptions,
         maxAge: 15 * 60 * 1000, // 15분
       });
 
       // Refresh Token 쿠키 설정 (14일)
       res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
-        secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
-        domain: process.env.COOKIE_DOMAIN || undefined,
+        ...cookieOptions,
         maxAge: 14 * 24 * 60 * 60 * 1000, // 14일
       });
 
@@ -153,12 +160,19 @@ export class AuthController {
 
     const newAccessToken = await this.authService.refresh(refreshToken);
 
+    // 쿠키 옵션 설정 (cross-origin 요청을 위한 설정)
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax') as 'lax' | 'strict' | 'none',
+      secure: isProduction || process.env.COOKIE_SECURE === 'true',
+      domain: process.env.COOKIE_DOMAIN || undefined,
+      path: '/',
+    };
+
     // 새로운 Access Token 쿠키 설정
     res.cookie('access_token', newAccessToken, {
-      httpOnly: true,
-      sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
-      secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
-      domain: process.env.COOKIE_DOMAIN || undefined,
+      ...cookieOptions,
       maxAge: 15 * 60 * 1000, // 15분
     });
 
@@ -188,19 +202,19 @@ export class AuthController {
     // DB에서 Refresh Token 제거 (보안 핵심)
     await this.authService.logout(user.id);
 
+    // 쿠키 옵션 설정 (cross-origin 요청을 위한 설정)
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax') as 'lax' | 'strict' | 'none',
+      secure: isProduction || process.env.COOKIE_SECURE === 'true',
+      domain: process.env.COOKIE_DOMAIN || undefined,
+      path: '/',
+    };
+
     // 쿠키 제거 (옵션 명시로 확실히 제거)
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
-      secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
-      domain: process.env.COOKIE_DOMAIN || undefined,
-    });
-    res.clearCookie('refresh_token', {
-      httpOnly: true,
-      sameSite: (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
-      secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
-      domain: process.env.COOKIE_DOMAIN || undefined,
-    });
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('refresh_token', cookieOptions);
 
     // 카카오 로그아웃 URL 생성 및 직접 리다이렉트
     // ⚠️ 중요: 카카오 개발자 콘솔에 로그아웃 리다이렉트 URI를 등록해야 함
