@@ -22,7 +22,7 @@ export class RecommendController {
   @ApiOperation({
     summary: '중간 지점 추천',
     description:
-      '참가자들의 위치를 기반으로 중간 지점을 추천합니다. 랜드마크(지하철역, 문화시설, 공공기관, 관광명소)를 우선적으로 추천합니다.',
+      '참가자들의 위치를 기반으로 중간 지점을 추천합니다. 랜드마크(지하철역, 문화시설, 공공기관, 관광명소)를 우선적으로 추천합니다. category 파라미터를 지정하면 해당 카테고리만 검색합니다.',
   })
   @ApiBody({ type: CreateRecommendDto })
   @ApiResponse({
@@ -54,7 +54,10 @@ export class RecommendController {
     description: '요청 한도 초과',
   })
   async recommend(@Body() createRecommendDto: CreateRecommendDto) {
-    return this.recommendService.recommend(createRecommendDto.participants);
+    return this.recommendService.recommend(
+      createRecommendDto.participants,
+      createRecommendDto.category,
+    );
   }
 }
 

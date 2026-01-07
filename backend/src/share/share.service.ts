@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { Share } from './entities/share.entity';
+import { User } from '../auth/entities/user.entity';
 
 export interface ShareData {
   anchor: { lat: number; lng: number };
@@ -35,9 +36,11 @@ export class ShareService {
   constructor(
     @InjectRepository(Share)
     private shareRepository: Repository<Share>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
-  async create(data: ShareData): Promise<{ shareId: string; url: string }> {
+  async create(data: ShareData, userId?: string): Promise<{ shareId: string; url: string }> {
     // 데이터 최소화: candidates 최대 10개 제한 및 좌표 소수점 6자리 제한
     const normalizedData: ShareData = {
       ...data,
@@ -71,6 +74,7 @@ export class ShareService {
       shareId,
       data: normalizedData,
       expiresAt,
+      userId: userId || null, // 로그인한 경우에만 userId 저장
     });
 
     await this.shareRepository.save(share);
@@ -89,9 +93,10 @@ export class ShareService {
     };
   }
 
-  async findOne(shareId: string): Promise<Partial<ShareData>> {
+  async findOne(shareId: string): Promise<Partial<ShareData> & { user?: { name: string } }> {
     const share = await this.shareRepository.findOne({
       where: { shareId },
+      relations: ['user'], // User 정보 조인
     });
 
     if (!share) {
@@ -106,12 +111,21 @@ export class ShareService {
 
     // 명세서에 맞게 응답 형식 조정 (participants는 선택적)
     const { anchor, final, candidates, participants } = share.data;
-    return {
+    const result: Partial<ShareData> & { user?: { name: string } } = {
       anchor,
       final,
       ...(candidates && candidates.length > 0 ? { candidates } : {}),
       ...(participants && participants.length > 0 ? { participants } : {}),
     };
+
+    // 로그인한 사용자가 공유한 경우 user 정보 추가
+    if (share.userId && share.user) {
+      result.user = {
+        name: share.user.nickname,
+      };
+    }
+
+    return result;
   }
 
   private async cleanExpiredShares(): Promise<void> {
