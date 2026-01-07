@@ -6,7 +6,12 @@
 - `PORT`: 서버 포트 (기본값: 3001)
 - `NODE_ENV`: 환경 모드 (`development` | `production`)
 - `BACKEND_URL`: 백엔드 URL (카카오 OAuth 콜백용)
-- `FRONTEND_URL`: 프론트엔드 URL (CORS 설정용)
+- `FRONTEND_URL`: 프론트엔드 URL (CORS 설정용, 여러 개는 쉼표로 구분)
+
+### 5. 쿠키 설정 (Cross-Origin 환경용)
+- `COOKIE_DOMAIN`: 쿠키 도메인 (예: `.onrender.com`)
+- `COOKIE_SAME_SITE`: SameSite 설정 (`lax` | `strict` | `none`)
+- `COOKIE_SECURE`: HTTPS 전용 쿠키 (`true` | `false`)
 
 ### 2. 카카오 API 설정
 - `KAKAO_REST_KEY`: 카카오 로컬 REST API 키
@@ -108,6 +113,34 @@ PORT=3001
 BACKEND_URL=https://api.yourdomain.com
 FRONTEND_URL=https://yourdomain.com
 DB_URL=postgresql://user:strong_password@db.example.com:5432/meet_middle
+
+# Cross-Origin 쿠키 설정 (프론트엔드와 백엔드 도메인이 다를 때 필수)
+COOKIE_DOMAIN=.onrender.com
+# 프로덕션에서는 자동으로 sameSite=none, secure=true 적용됨
+```
+
+### Render 배포 환경 (Cross-Origin)
+```env
+NODE_ENV=production
+PORT=3001
+BACKEND_URL=https://meet-middle-backend.onrender.com
+FRONTEND_URL=http://localhost:3000
+# 여러 프론트엔드 도메인 허용 시:
+# FRONTEND_URL=http://localhost:3000,https://your-frontend.vercel.app
+
+# 쿠키 설정 (Cross-Origin 필수)
+COOKIE_DOMAIN=.onrender.com
+
+# 카카오 API
+KAKAO_REST_KEY=your_rest_api_key
+KAKAO_CLIENT_ID=your_rest_api_key
+KAKAO_CLIENT_SECRET=your_client_secret
+
+# JWT
+JWT_SECRET=your_strong_jwt_secret
+
+# 데이터베이스
+DB_URL=your_database_url
 ```
 
 ---
