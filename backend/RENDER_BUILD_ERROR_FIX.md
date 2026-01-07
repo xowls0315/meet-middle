@@ -2,7 +2,6 @@
 
 ## 🚨 에러 내용
 
-### 에러 1: Peer Dependency 충돌
 ```
 npm error ERESOLVE could not resolve
 npm error While resolving: @nestjs/cache-manager@2.3.0
@@ -11,37 +10,13 @@ npm error Could not resolve dependency:
 npm error peer @nestjs/common@"^9.0.0 || ^10.0.0" from @nestjs/cache-manager@2.3.0
 ```
 
-### 에러 2: nest 명령어를 찾을 수 없음
-```
-sh: 1: nest: not found
-==> Build failed 😞
-```
-
 ## 🔍 원인
 
-### 원인 1: Peer Dependency 충돌
 `@nestjs/cache-manager@2.3.0`이 NestJS 11과 호환되지 않는다고 표시되지만, 실제로는 정상 작동합니다. 이는 peer dependency 검증 문제입니다.
-
-### 원인 2: nest 명령어 경로 문제
-`@nestjs/cli`가 `devDependencies`에 있어서, `nest` 명령어가 `node_modules/.bin` 경로에서 찾을 수 없을 수 있습니다. `npx`를 사용하거나 빌드 스크립트를 수정해야 합니다.
 
 ## ✅ 해결 방법
 
-### 1단계: package.json 수정
-
-`package.json`의 `build` 스크립트를 수정:
-
-**기존:**
-```json
-"build": "nest build",
-```
-
-**수정 후:**
-```json
-"build": "npx nest build",
-```
-
-### 2단계: Render Build Command 수정
+### Render Build Command 수정
 
 Render 대시보드 → **Settings** → **Build Command**를 다음으로 변경:
 
@@ -94,16 +69,10 @@ npm install --legacy-peer-deps && npm run build
    ```
 4. **Save Changes** 클릭
 
-### 3단계: package.json 변경사항 커밋 및 푸시
+### 3단계: 재배포
 
-1. 변경된 `package.json`을 Git에 커밋:
-   ```bash
-   git add backend/package.json
-   git commit -m "fix: Change build script to use npx nest build"
-   git push origin develop
-   ```
-
-2. Render에서 자동으로 재배포되거나, **Manual Deploy** → **Deploy latest commit** 클릭
+1. **Manual Deploy** → **Deploy latest commit** 클릭
+2. 또는 새로운 커밋을 푸시하면 자동으로 재배포됩니다.
 
 ---
 
@@ -138,13 +107,6 @@ npm run start:prod
 backend
 ```
 
-### package.json 변경사항
-`package.json`의 `build` 스크립트가 `npx nest build`로 설정되어 있어야 합니다:
-```json
-"build": "npx nest build",
-```
-
-이 변경사항은 이미 적용되어 있습니다. Git에 커밋하고 푸시하면 Render에서 자동으로 반영됩니다.
 
 ---
 
