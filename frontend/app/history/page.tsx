@@ -4,79 +4,41 @@ import { useState, useEffect } from "react";
 import ResultCard from "@/components/ResultCard";
 import Link from "next/link";
 import { HistoryListSkeleton } from "@/components/SkeletonList";
-
-interface Place {
-  placeId: string;
-  name: string;
-  address: string;
-  lat: number;
-  lng: number;
-  placeUrl?: string;
-  distance?: number;
-}
-
-interface Meeting {
-  id: string;
-  createdAt: string;
-  final: Place;
-  participantCount: number;
-}
+import { Meeting } from "@/types";
+import { getMeetings, deleteMeeting } from "@/lib/api/meetings";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { IoHomeOutline } from "react-icons/io5";
 
 export default function HistoryPage() {
+  const { isLoggedIn, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // TODO: 백엔드 API 호출
-  // useEffect(() => {
-  //   const fetchMeetings = async () => {
-  //     try {
-  //       const res = await fetch('/api/meetings');
-  //       if (!res.ok) throw new Error('기록을 불러올 수 없습니다.');
-  //       const data = await res.json();
-  //       setMeetings(data);
-  //     } catch (err) {
-  //       console.error(err);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-  //   fetchMeetings();
-  // }, []);
-
-  // 목업 데이터
+  // 백엔드 API 호출
   useEffect(() => {
-    setTimeout(() => {
-      setMeetings([
-        {
-          id: "1",
-          createdAt: "2024-01-15T10:30:00Z",
-          final: {
-            placeId: "final-1",
-            name: "강남역",
-            address: "서울특별시 강남구 강남대로 396",
-            lat: 37.498,
-            lng: 127.0276,
-            distance: 1250,
-          },
-          participantCount: 2,
-        },
-        {
-          id: "2",
-          createdAt: "2024-01-14T15:20:00Z",
-          final: {
-            placeId: "final-2",
-            name: "홍대입구역",
-            address: "서울특별시 마포구 양화로 188",
-            lat: 37.5567,
-            lng: 126.9234,
-            distance: 1800,
-          },
-          participantCount: 3,
-        },
-      ]);
-      setLoading(false);
-    }, 500);
-  }, []);
+    if (authLoading) return;
+
+    if (!isLoggedIn) {
+      alert("로그인이 필요한 페이지입니다.");
+      router.push("/");
+      return;
+    }
+
+    const fetchMeetings = async () => {
+      try {
+        const data = await getMeetings();
+        setMeetings(data);
+      } catch (err) {
+        console.error("기록 조회 오류:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMeetings();
+  }, [isLoggedIn, authLoading, router]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -93,8 +55,12 @@ export default function HistoryPage() {
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       {/* 헤더 */}
       <div className="mb-8">
-        <Link href="/" className="inline-block text-blue-600 hover:text-blue-700 font-medium mb-4">
-          ← 홈으로
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 mb-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+        >
+          <IoHomeOutline />
+          홈으로
         </Link>
         <h1 className="text-4xl font-bold gradient-text mb-2">내 기록</h1>
         <p className="text-slate-600">이전에 저장한 추천 결과를 확인할 수 있습니다</p>
@@ -121,16 +87,23 @@ export default function HistoryPage() {
                   <div className="text-sm text-blue-600 font-medium">{meeting.participantCount}명 참가</div>
                 </div>
                 <button
-                  className="text-sm text-red-600 hover:text-red-700 font-medium"
-                  onClick={() => {
-                    // TODO: DELETE /api/meetings/:id
-                    alert("삭제 기능은 백엔드 연동 후 활성화됩니다.");
+                  className="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer"
+                  onClick={async () => {
+                    if (!confirm("정말 삭제하시겠습니까?")) return;
+                    try {
+                      await deleteMeeting(meeting.id);
+                      setMeetings((prev) => prev.filter((m) => m.id !== meeting.id));
+                    } catch (err) {
+                      const errorMessage = err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.";
+                      alert(errorMessage);
+                      console.error("삭제 오류:", err);
+                    }
                   }}
                 >
                   삭제
                 </button>
               </div>
-              <ResultCard place={meeting.final} />
+              <ResultCard place={meeting.final} hideSelectButton />
             </div>
           ))}
         </div>

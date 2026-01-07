@@ -5,16 +5,9 @@ import ResultCard from "@/components/ResultCard";
 import MapArea from "@/components/MapArea";
 import Link from "next/link";
 import { SharePageSkeleton } from "@/components/SkeletonList";
-
-interface Place {
-  placeId: string;
-  name: string;
-  address: string;
-  lat: number;
-  lng: number;
-  placeUrl?: string;
-  distance?: number;
-}
+import { Place, ShareData } from "@/types";
+import { getShare } from "@/lib/api/share";
+import { IoArrowBackOutline } from "react-icons/io5";
 
 interface SharePageProps {
   params: Promise<{ id: string }>;
@@ -23,62 +16,26 @@ interface SharePageProps {
 export default function SharePage({ params }: SharePageProps) {
   const { id } = use(params);
   const [loading, setLoading] = useState(true);
-  const [shareData, setShareData] = useState<{
-    anchor?: { lat: number; lng: number };
-    final?: Place;
-    candidates?: Place[];
-    participants?: Array<{ label: string; lat: number; lng: number }>;
-  } | null>(null);
+  const [shareData, setShareData] = useState<ShareData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // TODO: 백엔드 API 호출
-  // useEffect(() => {
-  //   const fetchShare = async () => {
-  //     try {
-  //       const res = await fetch(`/api/share/${id}`);
-  //       if (!res.ok) throw new Error('공유 데이터를 불러올 수 없습니다.');
-  //       const data = await res.json();
-  //       setShareData(data);
-  //     } catch (err) {
-  //       setError(err.message);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-  //   fetchShare();
-  // }, [id]);
-
-  // 목업 데이터
+  // 백엔드 API 호출
   useEffect(() => {
-    setTimeout(() => {
-      setShareData({
-        anchor: { lat: 37.498, lng: 127.0276 },
-        final: {
-          placeId: "final-1",
-          name: "강남역",
-          address: "서울특별시 강남구 강남대로 396",
-          lat: 37.498,
-          lng: 127.0276,
-          distance: 1250,
-          placeUrl: "https://map.kakao.com/link/map/강남역,37.4980,127.0276",
-        },
-        candidates: [
-          {
-            placeId: "cand-1",
-            name: "서초역",
-            address: "서울특별시 서초구 서초대로 396",
-            lat: 37.4837,
-            lng: 127.0324,
-            distance: 1500,
-          },
-        ],
-        participants: [
-          { label: "A", lat: 37.5665, lng: 126.978 },
-          { label: "B", lat: 37.4845, lng: 127.0337 },
-        ],
-      });
-      setLoading(false);
-    }, 500);
+    const fetchShare = async () => {
+      try {
+        const data = await getShare(id);
+        console.log("📦 공유 데이터 응답:", data);
+        console.log("👤 사용자 정보:", data.user);
+        setShareData(data);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "공유 데이터를 불러올 수 없습니다.";
+        setError(errorMessage);
+        console.error("공유 데이터 조회 오류:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchShare();
   }, [id]);
 
   if (loading) {
@@ -113,9 +70,19 @@ export default function SharePage({ params }: SharePageProps) {
       {/* 헤더 */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold gradient-text mb-2">공유된 추천 결과</h1>
-        <p className="text-slate-600">다른 사람이 공유한 만남 장소 추천입니다</p>
-        <Link href="/" className="inline-block mt-4 text-blue-600 hover:text-blue-700 font-medium">
-          ← 새로운 추천 받기
+        {shareData.user?.name ? (
+          <p className="text-slate-600">
+            <span className="font-bold">{shareData.user.name}</span> 님이 공유한 만남 장소 추천입니다
+          </p>
+        ) : (
+          <p className="text-slate-600">다른 사람이 공유한 만남 장소 추천입니다</p>
+        )}
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+        >
+          <IoArrowBackOutline />
+          새로운 추천 받기
         </Link>
       </div>
 
@@ -141,6 +108,7 @@ export default function SharePage({ params }: SharePageProps) {
             anchor={shareData.anchor}
             finalPlace={shareData.final}
             candidates={shareData.candidates}
+            readOnly={true}
           />
         </div>
 
@@ -155,13 +123,25 @@ export default function SharePage({ params }: SharePageProps) {
             </div>
           )}
 
+          {/* 검색 정보 */}
+          {shareData.used && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                <span className="font-semibold">검색 범위:</span> {shareData.used.radius}m 반경, {shareData.used.category === "SW8" && "지하철역"}
+                {shareData.used.category === "CT1" && "문화시설"}
+                {shareData.used.category === "PO3" && "공공기관"}
+                {shareData.used.category === "AT4" && "관광명소"}
+              </p>
+            </div>
+          )}
+
           {/* 후보 리스트 */}
           {shareData.candidates && shareData.candidates.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-slate-700 mb-3">다른 후보 ({shareData.candidates.length}개)</h3>
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {shareData.candidates.map((candidate: Place) => (
-                  <ResultCard key={candidate.placeId} place={candidate} />
+                  <ResultCard key={candidate.placeId} place={candidate} hideSelectButton />
                 ))}
               </div>
             </div>

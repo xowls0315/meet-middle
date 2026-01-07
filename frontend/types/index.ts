@@ -16,9 +16,101 @@ export interface Participant {
   selectedPlace: Place | null;
 }
 
+export type ParticipantCount = 2 | 3 | 4;
+
 export interface RecommendResponse {
   anchor?: { lat: number; lng: number };
   final?: Place;
   candidates?: Place[];
   used?: { category: string; radius: number };
+}
+
+// 여러 카테고리 추천 결과
+export interface CategoryRecommendResult {
+  category: string;
+  categoryName: string;
+  final?: Place;
+  candidates?: Place[];
+  radius: number;
+}
+
+export interface MultiCategoryRecommendResponse {
+  anchor?: { lat: number; lng: number };
+  categories: CategoryRecommendResult[];
+}
+
+// API 요청/응답 타입
+export interface RecommendRequest {
+  participants: Array<{
+    label: string;
+    lat: number;
+    lng: number;
+  }>;
+}
+
+export interface ShareRequest {
+  anchor?: { lat: number; lng: number };
+  participants: Array<{
+    label: string;
+    lat: number;
+    lng: number;
+  }>;
+  final?: Place;
+  candidates?: Place[];
+  used?: { category: string; radius: number };
+}
+
+export interface ShareResponse {
+  shareId: string;
+  url: string;
+}
+
+export interface ShareData {
+  anchor?: { lat: number; lng: number };
+  participants?: Array<{
+    label: string;
+    lat: number;
+    lng: number;
+  }>;
+  final?: Place;
+  candidates?: Place[];
+  used?: { category: string; radius: number };
+  user?: {
+    name: string;
+  };
+}
+
+// 인증 관련 타입
+export interface User {
+  id: string;
+  name: string;
+  email?: string;
+  profileImage?: string;
+}
+
+export interface CreateMeetingRequest {
+  final: Place;
+  participantCount: number;
+}
+
+export interface Meeting {
+  id: string;
+  createdAt: string;
+  final: Place;
+  participantCount: number;
+}
+
+export interface CreateFavoriteRequest {
+  placeId: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  placeUrl?: string;
+}
+
+// 에러 응답 타입
+export interface ApiError {
+  error: string;
+  code?: string;
 }

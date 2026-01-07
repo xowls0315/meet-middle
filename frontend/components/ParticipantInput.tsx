@@ -1,21 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-
-interface Place {
-  placeId: string;
-  name: string;
-  address: string;
-  lat: number;
-  lng: number;
-  placeUrl?: string;
-}
-
-interface Participant {
-  label: string;
-  query: string;
-  selectedPlace: Place | null;
-}
+import { Place, Participant } from "@/types";
 
 interface ParticipantInputProps {
   participant: Participant;
@@ -31,7 +17,7 @@ export default function ParticipantInput({ participant, onChange, onSelectPlace,
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // TODO: 백엔드 연동 시 실제 API 호출
+  // 백엔드 API 호출
   const fetchSuggestions = async (query: string) => {
     if (query.length < 2) {
       setSuggestions([]);
@@ -47,35 +33,28 @@ export default function ParticipantInput({ participant, onChange, onSelectPlace,
     }
 
     debounceTimerRef.current = setTimeout(async () => {
-      // 실제 API 호출 대신 목업 데이터
-      // TODO: GET /api/search/suggest?q=...
-      const mockSuggestions: Place[] = [
-        {
-          placeId: "1",
-          name: `${query}역`,
-          address: `서울특별시 강남구 ${query}`,
-          lat: 37.5665,
-          lng: 126.978,
-        },
-        {
-          placeId: "2",
-          name: `${query} 문화센터`,
-          address: `서울특별시 서초구 ${query}로 123`,
-          lat: 37.4845,
-          lng: 127.0337,
-        },
-        {
-          placeId: "3",
-          name: `${query} 공원`,
-          address: `서울특별시 송파구 ${query}`,
-          lat: 37.5146,
-          lng: 127.1054,
-        },
-      ].slice(0, 7);
-
-      setSuggestions(mockSuggestions);
-      setShowSuggestions(true);
-      setIsLoading(false);
+      try {
+        const { searchPlaces } = await import("@/lib/api/search");
+        const results = await searchPlaces(query);
+        setSuggestions(results);
+        setShowSuggestions(true);
+      } catch (error) {
+        console.error("장소 검색 오류:", error);
+        // 에러 발생 시 빈 배열로 설정
+        setSuggestions([]);
+        setShowSuggestions(false);
+        // 사용자에게 알림 (500 에러는 백엔드 문제이므로 조용히 처리)
+        if (error instanceof Error) {
+          if (error.message.includes("429")) {
+            alert("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+          } else if (error.message.includes("500")) {
+            // 500 에러는 백엔드 문제이므로 사용자에게만 조용히 처리
+            console.error("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+          }
+        }
+      } finally {
+        setIsLoading(false);
+      }
     }, 500);
   };
 

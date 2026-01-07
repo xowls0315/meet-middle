@@ -4,73 +4,64 @@ import { useState, useEffect } from "react";
 import ResultCard from "@/components/ResultCard";
 import Link from "next/link";
 import { FavoritesListSkeleton } from "@/components/SkeletonList";
-
-interface Place {
-  placeId: string;
-  name: string;
-  address: string;
-  lat: number;
-  lng: number;
-  placeUrl?: string;
-  distance?: number;
-}
+import { Place } from "@/types";
+import { getFavorites, deleteFavorite } from "@/lib/api/favorites";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
+import { IoHomeOutline } from "react-icons/io5";
 
 export default function FavoritesPage() {
+  const { isLoggedIn, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const [favorites, setFavorites] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // TODO: 백엔드 API 호출
-  // useEffect(() => {
-  //   const fetchFavorites = async () => {
-  //     try {
-  //       const res = await fetch('/api/favorites');
-  //       if (!res.ok) throw new Error('즐겨찾기를 불러올 수 없습니다.');
-  //       const data = await res.json();
-  //       setFavorites(data);
-  //     } catch (err) {
-  //       console.error(err);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-  //   fetchFavorites();
-  // }, []);
-
-  // 목업 데이터
+  // 백엔드 API 호출
   useEffect(() => {
-    setTimeout(() => {
-      setFavorites([
-        {
-          placeId: "fav-1",
-          name: "강남역",
-          address: "서울특별시 강남구 강남대로 396",
-          lat: 37.498,
-          lng: 127.0276,
-        },
-        {
-          placeId: "fav-2",
-          name: "홍대입구역",
-          address: "서울특별시 마포구 양화로 188",
-          lat: 37.5567,
-          lng: 126.9234,
-        },
-      ]);
-      setLoading(false);
-    }, 500);
-  }, []);
+    if (authLoading) return;
+
+    if (!isLoggedIn) {
+      alert("로그인이 필요한 페이지입니다.");
+      router.push("/");
+      return;
+    }
+
+    const fetchFavorites = async () => {
+      try {
+        const data = await getFavorites();
+        setFavorites(data);
+      } catch (err) {
+        console.error("즐겨찾기 조회 오류:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFavorites();
+  }, [isLoggedIn, authLoading, router]);
 
   const handleRemove = async (placeId: string) => {
-    // TODO: DELETE /api/favorites/:placeId
-    setFavorites((prev) => prev.filter((f) => f.placeId !== placeId));
-    alert("즐겨찾기에서 제거되었습니다.");
+    if (!confirm("즐겨찾기에서 제거하시겠습니까?")) return;
+    try {
+      await deleteFavorite(placeId);
+      setFavorites((prev) => prev.filter((f) => f.placeId !== placeId));
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.";
+      alert(errorMessage);
+      console.error("삭제 오류:", err);
+    }
   };
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       {/* 헤더 */}
       <div className="mb-8">
-        <Link href="/" className="inline-block text-blue-600 hover:text-blue-700 font-medium mb-4">
-          ← 홈으로
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 mb-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+        >
+          <IoHomeOutline />
+          홈으로
         </Link>
         <h1 className="text-4xl font-bold gradient-text mb-2">즐겨찾기</h1>
         <p className="text-slate-600">자주 가는 장소를 저장해두세요</p>
@@ -96,7 +87,7 @@ export default function FavoritesPage() {
                   <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
                 </svg>
               </button>
-              <ResultCard place={favorite} />
+              <ResultCard place={favorite} hideSelectButton />
             </div>
           ))}
         </div>
