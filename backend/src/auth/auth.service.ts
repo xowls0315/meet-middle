@@ -125,6 +125,17 @@ export class AuthService {
   }
 
   /**
+   * Access Token에서 사용자 ID 추출 (만료 여부 확인 없이)
+   */
+  decodeToken(token: string): any {
+    try {
+      return this.jwtService.decode(token);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
    * 로그아웃 처리 (Refresh Token 제거)
    */
   async logout(userId: string): Promise<void> {
