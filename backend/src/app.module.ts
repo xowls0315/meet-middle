@@ -32,6 +32,14 @@ import { FavoritesModule } from './favorites/favorites.module';
       useFactory: (configService: ConfigService) => {
         const dbUrl = configService.get<string>('DB_URL');
         const isProduction = process.env.NODE_ENV === 'production';
+
+        // DB_URL 검증
+        if (!dbUrl) {
+          throw new Error(
+            'DB_URL environment variable is required. Please set it in your .env file or Render environment variables.',
+          );
+        }
+
         const requireSSL = process.env.DB_SSL === 'true' || isProduction;
 
         // DB_URL에서 SSL 요구사항 확인 (클라우드 DB는 대부분 SSL 필요)

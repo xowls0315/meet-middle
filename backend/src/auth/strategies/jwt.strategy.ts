@@ -10,6 +10,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     private authService: AuthService,
   ) {
+    const jwtSecret = configService.get<string>('JWT_SECRET');
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // 프로덕션 환경에서 JWT_SECRET 검증
+    if (isProduction && (!jwtSecret || jwtSecret === 'secret' || jwtSecret.length < 32)) {
+      throw new Error(
+        'JWT_SECRET is required and must be at least 32 characters long in production. ' +
+          'Please set a strong random string in Render environment variables.',
+      );
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         // 1순위: Authorization Bearer 헤더
@@ -20,7 +31,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         },
       ]),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || 'secret',
+      secretOrKey: jwtSecret || 'secret',
     });
   }
 
