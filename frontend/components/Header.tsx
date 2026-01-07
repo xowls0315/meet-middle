@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Header() {
-  // TODO: 백엔드 연동 시 실제 로그인 상태 확인
-  const isLoggedIn = false;
-  const user = null; // { name: "홍길동", profile: "..." }
+  const { user, isLoggedIn, isLoading, login, logout } = useAuth();
+  const pathname = usePathname();
+  const isGuidePage = pathname === "/guide";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-blue-200/50 bg-white/80 backdrop-blur-md shadow-sm">
@@ -16,29 +18,44 @@ export default function Header() {
         </Link>
 
         <nav className="flex items-center gap-4">
-          <Link href="/guide" className="px-6 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 transition-all">
-            가이드
-          </Link>
-          {isLoggedIn && user ? (
+          {isGuidePage ? (
+            <Link href="/" className="px-6 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 transition-all">
+              홈
+            </Link>
+          ) : (
+            <Link href="/guide" className="px-6 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 transition-all">
+              가이드
+            </Link>
+          )}
+          {isLoading ? (
+            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          ) : isLoggedIn && user ? (
             <>
-              <Link href="/history" className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors">
+              <Link href="/history" className="px-4 py-2 text-sm font-medium text-green-700 hover:text-green-800 bg-green-50 border border-green-200 rounded-full hover:bg-green-100 transition-all">
                 기록
               </Link>
-              <Link href="/favorites" className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-blue-600 transition-colors">
+              <Link href="/favorites" className="px-4 py-2 text-sm font-medium text-amber-700 hover:text-amber-800 bg-amber-50 border border-amber-200 rounded-full hover:bg-amber-100 transition-all">
                 즐겨찾기
               </Link>
               <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">{user.name?.[0] || "U"}</div>
-                <span className="text-sm font-medium text-slate-700 hidden sm:inline">{user.name || "사용자"}</span>
+                {user.profileImage ? (
+                  <img src={user.profileImage} alt={user.name} className="w-8 h-8 rounded-full" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">{user.name?.[0] || "U"}</div>
+                )}
+                <span className="text-sm font-bold text-slate-700 hidden sm:inline">{user.name || "사용자"}</span>
               </div>
+              <button
+                className="px-4 py-2 text-sm font-medium text-red-700 hover:text-red-800 bg-red-50 border border-red-200 rounded-full hover:bg-red-100 transition-all cursor-pointer"
+                onClick={logout}
+              >
+                로그아웃
+              </button>
             </>
           ) : (
             <button
-              className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-full hover:from-blue-600 hover:to-blue-700 transition-all shadow-md hover:shadow-lg"
-              onClick={() => {
-                // TODO: 카카오 로그인 연동
-                alert("로그인 기능은 백엔드 연동 후 활성화됩니다.");
-              }}
+              className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-full hover:from-blue-600 hover:to-blue-700 transition-all shadow-md hover:shadow-lg cursor-pointer"
+              onClick={login}
             >
               로그인
             </button>

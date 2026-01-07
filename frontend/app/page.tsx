@@ -6,46 +6,32 @@ import ParticipantInput from "@/components/ParticipantInput";
 import ResultCard from "@/components/ResultCard";
 import MapArea from "@/components/MapArea";
 import { RecommendResultSkeleton } from "@/components/RecommendSkeleton";
-import { IoBalloonOutline } from "react-icons/io5";
 import { BsSendArrowDown } from "react-icons/bs";
 import { HiOutlineSave } from "react-icons/hi";
 import { HiOutlineStar } from "react-icons/hi";
 import { FaRegLightbulb } from "react-icons/fa6";
 import { MdRecommend } from "react-icons/md";
 import { VscBook } from "react-icons/vsc";
-
-interface Place {
-  placeId: string;
-  name: string;
-  address: string;
-  lat: number;
-  lng: number;
-  placeUrl?: string;
-  distance?: number;
-}
-
-interface Participant {
-  label: string;
-  query: string;
-  selectedPlace: Place | null;
-}
-
-type ParticipantCount = 2 | 3 | 4;
+import { Place, Participant, ParticipantCount, RecommendResponse } from "@/types";
+import { recommend } from "@/lib/api/recommend";
+import { createShare } from "@/lib/api/share";
+import { createMeeting } from "@/lib/api/meetings";
+import { createFavorite } from "@/lib/api/favorites";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Home() {
+  const { isLoggedIn } = useAuth();
   const [participantCount, setParticipantCount] = useState<ParticipantCount>(2);
   const [participants, setParticipants] = useState<Participant[]>([
     { label: "A", query: "", selectedPlace: null },
     { label: "B", query: "", selectedPlace: null },
   ]);
-  const [result, setResult] = useState<{
-    anchor?: { lat: number; lng: number };
-    final?: Place;
-    candidates?: Place[];
-    used?: { category: string; radius: number };
-  } | null>(null);
+  const [result, setResult] = useState<RecommendResponse | null>(null);
+  const [categoryResults, setCategoryResults] = useState<Map<string, RecommendResponse>>(new Map());
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // 선택된 카테고리
   const [loading, setLoading] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // 참가자 수 변경
   const handleCountChange = (count: ParticipantCount) => {
@@ -71,6 +57,16 @@ export default function Home() {
     setParticipants((prev: Participant[]) => prev.map((p: Participant) => (p.label === label ? { ...p, selectedPlace: place } : p)));
   };
 
+  // 후보 장소 선택 (최종 추천 장소 변경)
+  const handleCandidateSelect = (place: Place) => {
+    if (result) {
+      setResult({
+        ...result,
+        final: place,
+      });
+    }
+  };
+
   // 추천 받기
   const handleRecommend = async () => {
     const allSelected = participants.every((p) => p.selectedPlace);
@@ -81,67 +77,68 @@ export default function Home() {
 
     setLoading(true);
     setResult(null);
+    setCategoryResults(new Map());
+    setSelectedCategory(null); // 카테고리 선택 초기화
     setShareUrl(null);
+    setError(null);
 
     try {
-      // TODO: 백엔드 API 호출
-      // POST /api/recommend
+      // 참가자 좌표만 추출
+      const requestData = participants
+        .filter((p) => p.selectedPlace)
+        .map((p) => ({
+          label: p.label,
+          lat: p.selectedPlace!.lat,
+          lng: p.selectedPlace!.lng,
+        }));
 
-      // 목업 데이터
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      const selectedPlaces = participants.filter((p: Participant) => p.selectedPlace).map((p: Participant) => p.selectedPlace!);
-
-      // 평균 좌표 계산 (anchor)
-      const avgLat = selectedPlaces.reduce((sum: number, p: Place) => sum + p.lat, 0) / selectedPlaces.length;
-      const avgLng = selectedPlaces.reduce((sum: number, p: Place) => sum + p.lng, 0) / selectedPlaces.length;
-
-      const mockFinal: Place = {
-        placeId: "final-1",
-        name: "강남역",
-        address: "서울특별시 강남구 강남대로 396",
-        lat: 37.498,
-        lng: 127.0276,
-        distance: 1250,
-        placeUrl: "https://map.kakao.com/link/map/강남역,37.4980,127.0276",
-      };
-
-      const mockCandidates: Place[] = [
-        {
-          placeId: "cand-1",
-          name: "서초역",
-          address: "서울특별시 서초구 서초대로 396",
-          lat: 37.4837,
-          lng: 127.0324,
-          distance: 1500,
-        },
-        {
-          placeId: "cand-2",
-          name: "교대역",
-          address: "서울특별시 서초구 서초대로 397",
-          lat: 37.4934,
-          lng: 127.0146,
-          distance: 1800,
-        },
-        {
-          placeId: "cand-3",
-          name: "역삼역",
-          address: "서울특별시 강남구 테헤란로 124",
-          lat: 37.4999,
-          lng: 127.0374,
-          distance: 2000,
-        },
+      // 4가지 카테고리별로 추천 받기
+      const categories = [
+        { code: "SW8", name: "지하철역" },
+        { code: "CT1", name: "문화시설" },
+        { code: "PO3", name: "공공기관" },
+        { code: "AT4", name: "관광명소" },
       ];
 
-      setResult({
-        anchor: { lat: avgLat, lng: avgLng },
-        final: mockFinal,
-        candidates: mockCandidates,
-        used: { category: "SW8", radius: 2000 },
-      });
+      const results = new Map<string, RecommendResponse>();
+      let firstResult: RecommendResponse | null = null;
+
+      // 모든 카테고리에 대해 병렬로 요청
+      await Promise.all(
+        categories.map(async (category) => {
+          try {
+            // 백엔드 API 호출 (현재는 카테고리 파라미터가 없어서 동일한 결과가 나올 수 있음)
+            // TODO: 백엔드에서 category 파라미터 지원 시 추가
+            const response = await recommend({ participants: requestData });
+            results.set(category.code, response);
+
+            // 첫 번째 결과를 기본 결과로 설정 (기존 호환성 유지)
+            if (!firstResult) {
+              firstResult = response;
+            }
+          } catch (error) {
+            console.error(`${category.name} 추천 오류:`, error);
+            // 일부 카테고리 실패해도 계속 진행
+          }
+        })
+      );
+
+      setCategoryResults(results);
+
+      // 첫 번째 결과를 기본 결과로 설정 (기존 로직 호환성)
+      if (firstResult) {
+        setResult(firstResult);
+      }
+
+      // 첫 번째 카테고리(지하철역)를 기본 선택으로 설정
+      if (results.size > 0) {
+        setSelectedCategory("SW8");
+      }
     } catch (error) {
-      alert("추천을 받는 중 오류가 발생했습니다.");
-      console.error(error);
+      const errorMessage = error instanceof Error ? error.message : "추천을 받는 중 오류가 발생했습니다.";
+      setError(errorMessage);
+      alert(errorMessage);
+      console.error("추천 오류:", error);
     } finally {
       setLoading(false);
     }
@@ -152,20 +149,35 @@ export default function Home() {
     if (!result) return;
 
     try {
-      // TODO: 백엔드 API 호출
-      // POST /api/share
+      // 참가자 좌표 추출
+      const participantsData = participants
+        .filter((p) => p.selectedPlace)
+        .map((p) => ({
+          label: p.label,
+          lat: p.selectedPlace!.lat,
+          lng: p.selectedPlace!.lng,
+        }));
 
-      // 목업
-      const mockShareId = "share_" + Date.now();
-      const url = `${window.location.origin}/share/${mockShareId}`;
+      // 백엔드 API 호출
+      const shareResponse = await createShare({
+        anchor: result.anchor,
+        participants: participantsData,
+        final: result.final,
+        candidates: result.candidates,
+        used: result.used,
+      });
+
+      // 백엔드에서 제공하는 URL이 있으면 사용, 없으면 프론트엔드 URL 생성
+      const url = shareResponse.url || `${typeof window !== "undefined" ? window.location.origin : ""}/share/${shareResponse.shareId}`;
       setShareUrl(url);
 
       // 클립보드 복사
       await navigator.clipboard.writeText(url);
       alert("공유 링크가 클립보드에 복사되었습니다!");
     } catch (error) {
-      alert("공유 링크 생성 중 오류가 발생했습니다.");
-      console.error(error);
+      const errorMessage = error instanceof Error ? error.message : "공유 링크 생성 중 오류가 발생했습니다.";
+      alert(errorMessage);
+      console.error("공유 오류:", error);
     }
   };
 
@@ -204,7 +216,7 @@ export default function Home() {
                 key={count}
                 onClick={() => handleCountChange(count)}
                 className={`px-6 py-2 rounded-lg font-medium transition-all ${
-                  participantCount === count ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md" : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  participantCount === count ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md" : "bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer"
                 }`}
               >
                 {count}명
@@ -266,12 +278,46 @@ export default function Home() {
           {/* 지도 */}
           <div>
             <h2 className="text-xl font-bold text-slate-800 mb-4">지도</h2>
-            <MapArea participants={participants} anchor={result.anchor} finalPlace={result.final} candidates={result.candidates} />
+            <MapArea participants={participants} anchor={result.anchor} finalPlace={result.final} candidates={result.candidates} onCandidateSelect={handleCandidateSelect} />
           </div>
 
           {/* 결과 카드 */}
           <div>
             <h2 className="text-xl font-bold text-slate-800 mb-4">추천 결과</h2>
+
+            {/* 카테고리 선택 버튼 */}
+            {categoryResults.size > 0 && (
+              <div className="mb-6 flex flex-wrap gap-2">
+                {[
+                  { code: "SW8", name: "지하철역" },
+                  { code: "CT1", name: "문화시설" },
+                  { code: "PO3", name: "공공기관" },
+                  { code: "AT4", name: "관광명소" },
+                ].map((category) => {
+                  const isSelected = selectedCategory === category.code;
+                  const hasResults =
+                    categoryResults.has(category.code) &&
+                    (categoryResults.get(category.code)?.final || (categoryResults.get(category.code)?.candidates && categoryResults.get(category.code)!.candidates!.length > 0));
+
+                  return (
+                    <button
+                      key={category.code}
+                      onClick={() => setSelectedCategory(category.code)}
+                      disabled={!hasResults}
+                      className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                        isSelected
+                          ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md"
+                          : hasResults
+                          ? "bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer"
+                          : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+                      }`}
+                    >
+                      {category.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* 최종 추천 */}
             {result.final && (
@@ -280,28 +326,102 @@ export default function Home() {
               </div>
             )}
 
-            {/* 검색 정보 */}
-            {result.used && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-blue-800">
-                  <span className="font-semibold">검색 범위:</span> {result.used.radius}m 반경, {result.used.category === "SW8" && "지하철역"}
-                  {result.used.category === "CT1" && "문화시설"}
-                  {result.used.category === "PO3" && "공공기관"}
-                  {result.used.category === "AT4" && "관광명소"}
-                </p>
-              </div>
-            )}
+            {/* 선택된 카테고리 결과 표시 */}
+            {categoryResults.size > 0 && selectedCategory ? (
+              (() => {
+                const categoryResult = categoryResults.get(selectedCategory);
+                if (!categoryResult) return null;
 
-            {/* 후보 리스트 */}
-            {result.candidates && result.candidates.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold text-slate-700 mb-3">다른 후보 ({result.candidates.length}개)</h3>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {result.candidates.map((candidate: Place) => (
-                    <ResultCard key={candidate.placeId} place={candidate} />
-                  ))}
-                </div>
-              </div>
+                const categoryNames: Record<string, string> = {
+                  SW8: "지하철역",
+                  CT1: "문화시설",
+                  PO3: "공공기관",
+                  AT4: "관광명소",
+                };
+                const categoryName = categoryNames[selectedCategory] || selectedCategory;
+
+                return (
+                  <div className="border-2 border-blue-200 rounded-xl p-4 bg-white">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">{categoryName}</span>
+                      {categoryResult.used && <span className="text-sm text-slate-600 font-normal">({categoryResult.used.radius}m 반경)</span>}
+                    </h3>
+
+                    {/* 해당 카테고리의 최종 추천 */}
+                    {categoryResult.final && (
+                      <div className="mb-4">
+                        <ResultCard
+                          place={categoryResult.final}
+                          isFinal={selectedCategory === result?.used?.category}
+                          onSelect={() => {
+                            if (categoryResult.final) {
+                              handleCandidateSelect(categoryResult.final);
+                              setResult({
+                                ...categoryResult,
+                                used: { category: selectedCategory, radius: categoryResult.used?.radius || 2000 },
+                              });
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* 해당 카테고리의 후보 리스트 */}
+                    {categoryResult.candidates && categoryResult.candidates.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-600 mb-2">다른 후보 ({categoryResult.candidates.length}개)</h4>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {categoryResult.candidates.map((candidate: Place) => (
+                            <ResultCard
+                              key={candidate.placeId}
+                              place={candidate}
+                              onSelect={() => {
+                                handleCandidateSelect(candidate);
+                                setResult({
+                                  ...categoryResult,
+                                  final: candidate,
+                                  used: { category: selectedCategory, radius: categoryResult.used?.radius || 2000 },
+                                });
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {!categoryResult.final && (!categoryResult.candidates || categoryResult.candidates.length === 0) && (
+                      <p className="text-sm text-slate-500 text-center py-4">해당 카테고리에서 추천 결과가 없습니다.</p>
+                    )}
+                  </div>
+                );
+              })()
+            ) : (
+              // 기존 방식 (하위 호환성)
+              <>
+                {/* 검색 정보 */}
+                {result.used && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-blue-800">
+                      <span className="font-semibold">검색 범위:</span> {result.used.radius}m 반경, {result.used.category === "SW8" && "지하철역"}
+                      {result.used.category === "CT1" && "문화시설"}
+                      {result.used.category === "PO3" && "공공기관"}
+                      {result.used.category === "AT4" && "관광명소"}
+                    </p>
+                  </div>
+                )}
+
+                {/* 후보 리스트 */}
+                {result.candidates && result.candidates.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-700 mb-3">다른 후보 ({result.candidates.length}개)</h3>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {result.candidates.map((candidate: Place) => (
+                        <ResultCard key={candidate.placeId} place={candidate} onSelect={() => handleCandidateSelect(candidate)} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -328,22 +448,79 @@ export default function Home() {
               </div>
             )}
 
-            {/* TODO: 로그인 상태일 때만 표시 */}
-            <button
-              className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
-              onClick={() => alert("로그인 후 사용 가능합니다.")}
-            >
-              <HiOutlineSave />
-              이번 결과 저장
-            </button>
+            {/* 로그인 상태일 때만 표시 */}
+            {isLoggedIn ? (
+              <>
+                <button
+                  className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+                  onClick={async () => {
+                    if (!result?.final) return;
+                    try {
+                      await createMeeting({
+                        final: result.final,
+                        participantCount: participants.filter((p) => p.selectedPlace).length,
+                      });
+                      alert("결과가 저장되었습니다!");
+                    } catch (error) {
+                      const errorMessage = error instanceof Error ? error.message : "저장 중 오류가 발생했습니다.";
+                      alert(errorMessage);
+                      console.error("저장 오류:", error);
+                    }
+                  }}
+                >
+                  <HiOutlineSave />
+                  이번 결과 저장
+                </button>
 
-            <button
-              className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
-              onClick={() => alert("로그인 후 사용 가능합니다.")}
-            >
-              <HiOutlineStar />
-              즐겨찾기 추가
-            </button>
+                <button
+                  className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+                  onClick={async () => {
+                    if (!result?.final) return;
+                    try {
+                      await createFavorite({
+                        placeId: result.final.placeId,
+                        name: result.final.name,
+                        address: result.final.address,
+                        lat: result.final.lat,
+                        lng: result.final.lng,
+                        placeUrl: result.final.placeUrl,
+                      });
+                      alert("즐겨찾기에 추가되었습니다!");
+                    } catch (error) {
+                      const errorMessage = error instanceof Error ? error.message : "즐겨찾기 추가 중 오류가 발생했습니다.";
+                      // 409 에러는 이미 추가된 경우
+                      if (errorMessage.includes("이미")) {
+                        alert(errorMessage);
+                      } else {
+                        alert(errorMessage);
+                      }
+                      console.error("즐겨찾기 오류:", error);
+                    }
+                  }}
+                >
+                  <HiOutlineStar />
+                  즐겨찾기 추가
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+                  onClick={() => alert("로그인 후 사용 가능합니다.")}
+                >
+                  <HiOutlineSave />
+                  이번 결과 저장
+                </button>
+
+                <button
+                  className="px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+                  onClick={() => alert("로그인 후 사용 가능합니다.")}
+                >
+                  <HiOutlineStar />
+                  즐겨찾기 추가
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -356,7 +533,7 @@ export default function Home() {
             <div className="text-sm text-blue-800 text-left">
               <strong>팁:</strong> 자동완성은 최소 2글자 입력 시 표시되며, 500ms 디바운스가 적용됩니다.
               <br />
-              모든 참가자의 출발지를 선택하신 후 "추천받기" 버튼을 눌러주세요.
+              모든 참가자의 출발지를 선택하신 후 &quot;추천받기&quot; 버튼을 눌러주세요.
             </div>
           </div>
         </div>
