@@ -39,6 +39,9 @@ export interface MultiCategoryRecommendResponse {
   categories: CategoryRecommendResult[];
 }
 
+// 카테고리 코드 타입
+export type CategoryCode = "SW8" | "CT1" | "PO3" | "AT4";
+
 // API 요청/응답 타입
 export interface RecommendRequest {
   participants: Array<{
@@ -46,6 +49,7 @@ export interface RecommendRequest {
     lat: number;
     lng: number;
   }>;
+  category?: CategoryCode; // 선택적 카테고리 파라미터
 }
 
 export interface ShareRequest {
