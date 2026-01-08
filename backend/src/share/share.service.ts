@@ -26,6 +26,9 @@ export interface ShareData {
     distance?: number;
   }>;
   used?: { category: string; radius: number };
+  user?: {
+    nickname: string;
+  };
 }
 
 @Injectable()
@@ -93,7 +96,7 @@ export class ShareService {
     };
   }
 
-  async findOne(shareId: string): Promise<Partial<ShareData> & { user?: { nickname: string } }> {
+  async findOne(shareId: string): Promise<Partial<ShareData>> {
     const share = await this.shareRepository.findOne({
       where: { shareId },
     });
@@ -110,7 +113,7 @@ export class ShareService {
 
     // 명세서에 맞게 응답 형식 조정 (participants는 선택적)
     const { anchor, final, candidates, participants, userName } = share.data;
-    const result: Partial<ShareData> & { user?: { nickname: string } } = {
+    const result: Partial<ShareData> = {
       anchor,
       final,
       ...(candidates && candidates.length > 0 ? { candidates } : {}),
