@@ -66,13 +66,17 @@ export class AuthController {
         await this.authService.login(user);
 
       // Refresh Token만 쿠키에 저장 (보안 - HttpOnly로 XSS 방지)
+      // 모바일 호환성을 위한 쿠키 설정: sameSite: 'none' + secure: true (HTTPS일 때 필수)
       const isProduction = process.env.NODE_ENV === 'production';
+      const isHTTPS = req.protocol === 'https' || isProduction;
+      
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
-        sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax'),
-        secure: isProduction || process.env.COOKIE_SECURE === 'true',
-        domain: process.env.COOKIE_DOMAIN || undefined,
+        sameSite: isHTTPS ? 'none' : 'lax', // HTTPS면 'none', 아니면 'lax'
+        secure: isHTTPS, // HTTPS일 때만 true
+        path: '/', // 모든 경로에서 접근 가능
         maxAge: 14 * 24 * 60 * 60 * 1000, // 14일
+        // domain 제거: 명시적 설정 시 모바일에서 문제 발생 가능
       });
 
       // Access Token은 URL 파라미터로 전달 (프론트엔드가 메모리/localStorage에 저장)
@@ -212,13 +216,16 @@ export class AuthController {
     // DB에서 Refresh Token 제거 (보안 핵심)
     await this.authService.logout(user.id);
 
-    // Refresh Token 쿠키 제거
+    // Refresh Token 쿠키 제거 (설정은 저장 시와 동일하게)
     const isProduction = process.env.NODE_ENV === 'production';
+    const isHTTPS = req.protocol === 'https' || isProduction;
+    
     res.clearCookie('refresh_token', {
       httpOnly: true,
-      sameSite: (isProduction ? 'none' : (process.env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax'),
-      secure: isProduction || process.env.COOKIE_SECURE === 'true',
-      domain: process.env.COOKIE_DOMAIN || undefined,
+      sameSite: isHTTPS ? 'none' : 'lax',
+      secure: isHTTPS,
+      path: '/',
+      // domain 제거: 명시적 설정 시 모바일에서 문제 발생 가능
     });
 
     // 카카오 로그아웃 URL 생성 및 직접 리다이렉트
