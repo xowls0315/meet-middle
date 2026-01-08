@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseInterceptors, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseInterceptors, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
@@ -12,6 +12,7 @@ import { ShareService } from './share.service';
 import { CreateShareDto } from './dto/create-share.dto';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
 import { Public } from '../auth/decorators/public.decorator';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 
 @ApiTags('share')
 @Controller('api/share')
@@ -21,11 +22,12 @@ export class ShareController {
 
   @Post()
   @Public()
+  @UseGuards(OptionalJwtAuthGuard) // 선택적 인증: 토큰이 있으면 사용자 정보 설정
   @Throttle({ medium: { limit: 10, ttl: 60000 } })
   @ApiOperation({
     summary: '공유 링크 생성',
     description:
-      '추천 결과를 공유할 수 있는 링크를 생성합니다. 링크는 7일간 유효합니다.',
+      '추천 결과를 공유할 수 있는 링크를 생성합니다. 링크는 7일간 유효합니다. 로그인한 경우 공유자 정보가 저장됩니다.',
   })
   @ApiBody({ type: CreateShareDto })
   @ApiResponse({
@@ -47,7 +49,7 @@ export class ShareController {
     description: '요청 한도 초과',
   })
   async createShare(@Body() createShareDto: CreateShareDto, @Req() req: Request) {
-    const user = req.user as any; // 로그인한 경우에만 존재
+    const user = req.user as any; // 로그인한 경우에만 존재 (OptionalJwtAuthGuard가 설정)
     return this.shareService.create(createShareDto.data, user?.nickname);
   }
 
@@ -83,7 +85,7 @@ export class ShareController {
           { label: 'B', lat: 37.5651, lng: 126.9895 },
         ],
         user: {
-          name: '홍길동',
+          nickname: '홍길동',
         },
       },
     },
