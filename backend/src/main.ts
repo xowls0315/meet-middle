@@ -35,10 +35,27 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  // CORS 설정
+  // CORS 설정 (모바일 호환성 개선)
+  const allowedOrigins = process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.split(',').map((url) => url.trim())
+    : ['http://localhost:3000'];
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
+    origin: (origin, callback) => {
+      // origin이 없으면 (같은 도메인 요청 또는 모바일 앱) 허용
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.warn(`CORS blocked origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true, // 쿠키 전송 허용 (모바일 필수)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Set-Cookie', 'X-New-Access-Token'], // 토큰 자동 갱신 헤더 노출
   });
 
   // Cookie parser 미들웨어
