@@ -93,7 +93,7 @@ export class ShareService {
     };
   }
 
-  async findOne(shareId: string): Promise<Partial<ShareData> & { user?: { name: string } }> {
+  async findOne(shareId: string): Promise<Partial<ShareData> & { user?: { nickname: string } }> {
     const share = await this.shareRepository.findOne({
       where: { shareId },
     });
@@ -110,7 +110,7 @@ export class ShareService {
 
     // 명세서에 맞게 응답 형식 조정 (participants는 선택적)
     const { anchor, final, candidates, participants, userName } = share.data;
-    const result: Partial<ShareData> & { user?: { name: string } } = {
+    const result: Partial<ShareData> & { user?: { nickname: string } } = {
       anchor,
       final,
       ...(candidates && candidates.length > 0 ? { candidates } : {}),
@@ -120,7 +120,7 @@ export class ShareService {
     // 로그인한 사용자가 공유한 경우 user 정보 추가
     if (userName) {
       result.user = {
-        name: userName,
+        nickname: userName,
       };
     }
 
