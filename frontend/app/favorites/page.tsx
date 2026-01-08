@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import ResultCard from "@/components/ResultCard";
+import ResultCard from "@/_components/ui/ResultCard";
 import Link from "next/link";
-import { FavoritesListSkeleton } from "@/components/SkeletonList";
+import { FavoritesListSkeleton } from "@/_components/ui/skeleton/SkeletonList";
 import { Place } from "@/types";
 import { getFavorites, deleteFavorite } from "@/lib/api/favorites";
 import { useAuth } from "@/hooks/useAuth";
@@ -58,7 +58,7 @@ export default function FavoritesPage() {
       <div className="mb-8">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 mb-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+          className="inline-flex items-center gap-2 mb-4 px-4 py-2 text-md font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
         >
           <IoHomeOutline />
           홈으로

@@ -1,10 +1,10 @@
 "use client";
 
 import { use, useState, useEffect } from "react";
-import ResultCard from "@/components/ResultCard";
-import MapArea from "@/components/MapArea";
+import ResultCard from "@/_components/ui/ResultCard";
+import MapArea from "@/_components/ui/MapArea";
 import Link from "next/link";
-import { SharePageSkeleton } from "@/components/SkeletonList";
+import { SharePageSkeleton } from "@/_components/ui/skeleton/SkeletonList";
 import { Place, ShareData } from "@/types";
 import { getShare } from "@/lib/api/share";
 import { IoArrowBackOutline } from "react-icons/io5";
@@ -24,8 +24,6 @@ export default function SharePage({ params }: SharePageProps) {
     const fetchShare = async () => {
       try {
         const data = await getShare(id);
-        console.log("📦 공유 데이터 응답:", data);
-        console.log("👤 사용자 정보:", data.user);
         setShareData(data);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "공유 데이터를 불러올 수 없습니다.";
@@ -70,13 +68,15 @@ export default function SharePage({ params }: SharePageProps) {
       {/* 헤더 */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold gradient-text mb-2">공유된 추천 결과</h1>
-        {shareData.user?.name ? (
-          <p className="text-slate-600">
-            <span className="font-bold">{shareData.user.name}</span> 님이 공유한 만남 장소 추천입니다
-          </p>
-        ) : (
-          <p className="text-slate-600">다른 사람이 공유한 만남 장소 추천입니다</p>
-        )}
+        <p className="text-slate-600">
+          {shareData?.user?.nickname ? (
+            <>
+              <span className="font-bold">{shareData.user.nickname}</span> 님이 공유한 만남 장소 추천입니다
+            </>
+          ) : (
+            "다른 사람이 공유한 만남 장소 추천입니다"
+          )}
+        </p>
         <Link
           href="/"
           className="inline-flex items-center gap-2 mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"

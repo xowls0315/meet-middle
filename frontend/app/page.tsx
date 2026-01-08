@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import ParticipantInput from "@/components/ParticipantInput";
-import ResultCard from "@/components/ResultCard";
-import MapArea from "@/components/MapArea";
-import { RecommendResultSkeleton } from "@/components/RecommendSkeleton";
+import ParticipantInput from "@/_components/ui/ParticipantInput";
+import ResultCard from "@/_components/ui/ResultCard";
+import MapArea from "@/_components/ui/MapArea";
+import { RecommendResultSkeleton } from "@/_components/ui/skeleton/RecommendSkeleton";
 import { BsSendArrowDown } from "react-icons/bs";
 import { HiOutlineSave } from "react-icons/hi";
 import { HiOutlineStar } from "react-icons/hi";
@@ -59,13 +59,41 @@ export default function Home() {
 
   // 후보 장소 선택 (최종 추천 장소 변경)
   const handleCandidateSelect = (place: Place) => {
-    if (result) {
-      setResult({
-        ...result,
-        final: place,
-      });
+    if (result && selectedCategory) {
+      // 선택된 카테고리의 결과를 업데이트
+      const categoryResult = categoryResults.get(selectedCategory);
+      if (categoryResult) {
+        const updatedCategoryResult = {
+          ...categoryResult,
+          final: place,
+        };
+        // categoryResults 업데이트
+        setCategoryResults((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(selectedCategory, updatedCategoryResult);
+          return newMap;
+        });
+        // result도 업데이트
+        setResult(updatedCategoryResult);
+      } else {
+        // 카테고리 결과가 없으면 기존 로직 유지
+        setResult({
+          ...result,
+          final: place,
+        });
+      }
     }
   };
+
+  // 선택된 카테고리가 변경될 때 result 업데이트
+  useEffect(() => {
+    if (selectedCategory && categoryResults.has(selectedCategory)) {
+      const categoryResult = categoryResults.get(selectedCategory);
+      if (categoryResult) {
+        setResult(categoryResult);
+      }
+    }
+  }, [selectedCategory, categoryResults]);
 
   // 추천 받기
   const handleRecommend = async () => {
@@ -127,14 +155,18 @@ export default function Home() {
 
       setCategoryResults(results);
 
-      // 첫 번째 결과를 기본 결과로 설정 (기존 로직 호환성)
-      if (firstResult) {
-        setResult(firstResult);
-      }
-
       // 첫 번째 카테고리(지하철역)를 기본 선택으로 설정
       if (results.size > 0) {
-        setSelectedCategory("SW8");
+        const defaultCategory = "SW8";
+        setSelectedCategory(defaultCategory);
+        // 기본 카테고리의 결과를 result에 설정
+        const defaultResult = results.get(defaultCategory);
+        if (defaultResult) {
+          setResult(defaultResult);
+        } else if (firstResult) {
+          // 기본 카테고리에 결과가 없으면 첫 번째 결과 사용
+          setResult(firstResult);
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "추천을 받는 중 오류가 발생했습니다.";
@@ -280,7 +312,13 @@ export default function Home() {
           {/* 지도 */}
           <div>
             <h2 className="text-xl font-bold text-slate-800 mb-4">지도</h2>
-            <MapArea participants={participants} anchor={result.anchor} finalPlace={result.final} candidates={result.candidates} onCandidateSelect={handleCandidateSelect} />
+            <MapArea
+              participants={participants}
+              anchor={selectedCategory && categoryResults.has(selectedCategory) ? categoryResults.get(selectedCategory)?.anchor : result.anchor}
+              finalPlace={selectedCategory && categoryResults.has(selectedCategory) ? categoryResults.get(selectedCategory)?.final : result.final}
+              candidates={selectedCategory && categoryResults.has(selectedCategory) ? categoryResults.get(selectedCategory)?.candidates : result.candidates}
+              onCandidateSelect={handleCandidateSelect}
+            />
           </div>
 
           {/* 결과 카드 */}
@@ -321,13 +359,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* 최종 추천 */}
-            {result.final && (
-              <div className="mb-4">
-                <ResultCard place={result.final} isFinal />
-              </div>
-            )}
-
             {/* 선택된 카테고리 결과 표시 */}
             {categoryResults.size > 0 && selectedCategory ? (
               (() => {
@@ -354,14 +385,11 @@ export default function Home() {
                       <div className="mb-4">
                         <ResultCard
                           place={categoryResult.final}
-                          isFinal={selectedCategory === result?.used?.category}
+                          isFinal={true}
+                          categoryName={categoryName}
                           onSelect={() => {
                             if (categoryResult.final) {
                               handleCandidateSelect(categoryResult.final);
-                              setResult({
-                                ...categoryResult,
-                                used: { category: selectedCategory, radius: categoryResult.used?.radius || 2000 },
-                              });
                             }
                           }}
                         />
@@ -379,11 +407,6 @@ export default function Home() {
                               place={candidate}
                               onSelect={() => {
                                 handleCandidateSelect(candidate);
-                                setResult({
-                                  ...categoryResult,
-                                  final: candidate,
-                                  used: { category: selectedCategory, radius: categoryResult.used?.radius || 2000 },
-                                });
                               }}
                             />
                           ))}
@@ -458,9 +481,19 @@ export default function Home() {
                   onClick={async () => {
                     if (!result?.final) return;
                     try {
+                      // 참가자 정보 추출 (표시용)
+                      const participantsData = participants
+                        .filter((p) => p.selectedPlace)
+                        .map((p) => ({
+                          label: p.label,
+                          name: p.selectedPlace!.name,
+                          address: p.selectedPlace!.address,
+                        }));
+
                       await createMeeting({
                         final: result.final,
-                        participantCount: participants.filter((p) => p.selectedPlace).length,
+                        participantCount: participantsData.length,
+                        participants: participantsData,
                       });
                       alert("결과가 저장되었습니다!");
                     } catch (error) {

@@ -60,31 +60,51 @@ apiClient.interceptors.response.use(
       const isAuthEndpoint = authEndpoints.some((endpoint) => originalRequest.url?.includes(endpoint));
 
       if (isAuthEndpoint) {
-        // 인증 관련 엔드포인트는 토큰 갱신 시도 안 함
+        // 인증 관련 엔드포인트의 401 에러는 게스트 모드이므로 조용히 처리
+        // 콘솔 에러를 출력하지 않기 위해 빈 에러 객체 반환
         authApi.setAccessToken(null);
-        return Promise.reject(error);
+        const silentError = new Error();
+        silentError.name = "SilentAuthError";
+        return Promise.reject(silentError);
       }
 
-      // 다른 엔드포인트의 경우 Access Token 갱신 시도
+      // 다른 엔드포인트의 경우: 백엔드가 401 응답에 새 토큰을 포함했는지 확인
       originalRequest._retry = true;
 
-      try {
-        // Refresh Token으로 새 Access Token 발급
-        const newAccessToken = await authApi.refreshToken();
+      // 1. 응답 헤더에서 새 Access Token 확인
+      const newAccessTokenFromHeader = error.response.headers["x-new-access-token"] as string | undefined;
 
-        // 새 Access Token을 state에 저장
+      // 2. 응답 본문에서 새 Access Token 확인 (헤더에 없을 경우)
+      let newAccessTokenFromBody: string | undefined;
+      if (!newAccessTokenFromHeader && error.response.data) {
+        try {
+          const responseData = error.response.data as { newAccessToken?: string };
+          newAccessTokenFromBody = responseData?.newAccessToken;
+        } catch {
+          // 본문 파싱 실패 시 무시
+        }
+      }
+
+      // 새 토큰이 있는 경우
+      const newAccessToken = newAccessTokenFromHeader || newAccessTokenFromBody;
+      if (newAccessToken) {
+        // 새 Access Token을 저장
         authApi.setAccessToken(newAccessToken);
 
-        // 새 Access Token으로 원래 요청 재시도
+        // 원래 요청에 새 토큰을 추가하여 재시도
         if (originalRequest.headers) {
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         }
         return apiClient(originalRequest);
-      } catch (refreshError) {
-        // Refresh Token도 만료 또는 갱신 실패
-        authApi.setAccessToken(null);
-        return Promise.reject(refreshError);
       }
+
+      // 새 토큰이 없으면 Refresh Token도 만료된 것 → 로그아웃 처리
+      authApi.setAccessToken(null);
+      // 로그인 페이지로 리다이렉트 (필요시)
+      // if (typeof window !== "undefined") {
+      //   window.location.href = "/";
+      // }
+      return Promise.reject(error);
     }
 
     // 429 Rate Limit 에러 처리

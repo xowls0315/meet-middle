@@ -158,3 +158,4 @@ export default function ParticipantInput({ participant, onChange, onSelectPlace,
     </div>
   );
 }
+

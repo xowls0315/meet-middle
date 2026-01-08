@@ -80,7 +80,7 @@ export interface ShareData {
   candidates?: Place[];
   used?: { category: string; radius: number };
   user?: {
-    name: string;
+    nickname: string;
   };
 }
 
@@ -95,6 +95,11 @@ export interface User {
 export interface CreateMeetingRequest {
   final: Place;
   participantCount: number;
+  participants: Array<{
+    label: string;
+    name: string; // 장소 이름
+    address?: string; // 장소 주소 (선택적)
+  }>;
 }
 
 export interface Meeting {
@@ -102,6 +107,11 @@ export interface Meeting {
   createdAt: string;
   final: Place;
   participantCount: number;
+  participants: Array<{
+    label: string;
+    name: string; // 장소 이름
+    address?: string; // 장소 주소 (선택적)
+  }>;
 }
 
 export interface CreateFavoriteRequest {
