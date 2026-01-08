@@ -49,7 +49,8 @@ export class ShareController {
     description: '요청 한도 초과',
   })
   async createShare(@Body() createShareDto: CreateShareDto, @Req() req: Request) {
-    const user = req.user as any; // 로그인한 경우에만 존재 (OptionalJwtAuthGuard가 설정)
+    // OptionalJwtAuthGuard가 토큰이 있으면 req.user에 사용자 정보 설정
+    const user = req.user as { nickname?: string } | undefined;
     return this.shareService.create(createShareDto.data, user?.nickname);
   }
 
