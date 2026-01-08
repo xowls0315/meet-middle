@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Meeting } from './entities/meeting.entity';
@@ -14,6 +14,11 @@ interface MeetingData {
     distance?: number;
   };
   participantCount: number;
+  participants: Array<{
+    label: string;
+    name: string;
+    address?: string;
+  }>;
 }
 
 @Injectable()
@@ -27,7 +32,14 @@ export class MeetingsService {
     userId: string,
     createMeetingDto: MeetingData,
   ): Promise<{ id: string; createdAt: string }> {
-    // 데이터 최소화: final만 저장 (candidates, participants 저장 안 함)
+    // participants 배열 길이와 participantCount 검증
+    if (createMeetingDto.participants.length !== createMeetingDto.participantCount) {
+      throw new BadRequestException(
+        `participants 배열 길이(${createMeetingDto.participants.length})가 participantCount(${createMeetingDto.participantCount})와 일치하지 않습니다.`,
+      );
+    }
+
+    // 데이터 최소화 및 정규화
     const normalizedData = {
       final: {
         ...createMeetingDto.final,
@@ -36,6 +48,11 @@ export class MeetingsService {
         lng: Number(createMeetingDto.final.lng.toFixed(6)),
       },
       participantCount: createMeetingDto.participantCount,
+      participants: createMeetingDto.participants.map((p) => ({
+        label: p.label,
+        name: p.name,
+        ...(p.address ? { address: p.address } : {}),
+      })),
     };
 
     const meeting = this.meetingRepository.create({
@@ -65,6 +82,11 @@ export class MeetingsService {
         distance?: number;
       };
       participantCount: number;
+      participants: Array<{
+        label: string;
+        name: string;
+        address?: string;
+      }>;
     }>
   > {
     const meetings = await this.meetingRepository.find({
@@ -77,6 +99,8 @@ export class MeetingsService {
       createdAt: meeting.createdAt.toISOString(),
       final: meeting.data.final,
       participantCount: meeting.data.participantCount,
+      // 기존 데이터 호환성을 위해 participants가 없으면 빈 배열 반환
+      participants: meeting.data.participants || [],
     }));
   }
 

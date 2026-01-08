@@ -6,6 +6,9 @@ import {
   IsIn,
   Min,
   Max,
+  IsArray,
+  ArrayMinSize,
+  IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -45,6 +48,22 @@ class FinalPlaceDto {
   distance?: number;
 }
 
+class ParticipantDto {
+  @ApiProperty({ description: '참가자 라벨', example: 'A', enum: ['A', 'B', 'C', 'D'] })
+  @IsString()
+  @IsIn(['A', 'B', 'C', 'D'])
+  label: string;
+
+  @ApiProperty({ description: '장소 이름', example: '홍대입구역' })
+  @IsString()
+  name: string;
+
+  @ApiProperty({ description: '장소 주소', example: '서울특별시 마포구 양화로 160', required: false })
+  @IsString()
+  @IsOptional()
+  address?: string;
+}
+
 export class CreateMeetingDto {
   @ApiProperty({ description: '최종 추천 장소', type: FinalPlaceDto })
   @IsObject()
@@ -56,5 +75,19 @@ export class CreateMeetingDto {
   @IsNumber()
   @IsIn([2, 3, 4])
   participantCount: number;
+
+  @ApiProperty({
+    description: '참가자별 장소 정보',
+    type: [ParticipantDto],
+    example: [
+      { label: 'A', name: '홍대입구역', address: '서울특별시 마포구 양화로 160' },
+      { label: 'B', name: '강남역', address: '서울특별시 강남구 강남대로 396' },
+    ],
+  })
+  @IsArray()
+  @ArrayMinSize(2)
+  @ValidateNested({ each: true })
+  @Type(() => ParticipantDto)
+  participants: ParticipantDto[];
 }
 

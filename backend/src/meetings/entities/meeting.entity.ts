@@ -32,6 +32,11 @@ export class Meeting {
       distance?: number;
     };
     participantCount: number;
+    participants: Array<{
+      label: string; // "A", "B", "C", "D"
+      name: string; // 장소 이름
+      address?: string; // 장소 주소 (선택적)
+    }>;
   };
 
   @CreateDateColumn()
