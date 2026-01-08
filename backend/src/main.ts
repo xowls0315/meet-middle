@@ -44,8 +44,7 @@ async function bootstrap() {
   // Cookie parser 미들웨어
   app.use(cookieParser());
 
-  // 전역 Exception Filter (명세서에 맞는 에러 응답 형식)
-  app.useGlobalFilters(new HttpExceptionFilter());
+  // 전역 Exception Filter는 AppModule에서 APP_FILTER로 등록됨
 
   // Validation pipe 전역 설정
   app.useGlobalPipes(
