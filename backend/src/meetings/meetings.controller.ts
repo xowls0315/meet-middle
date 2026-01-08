@@ -87,6 +87,10 @@ export class MeetingsController {
             placeUrl: 'http://place.map.kakao.com/m/8241891',
           },
           participantCount: 2,
+          participants: [
+            { label: 'A', name: '홍대입구역', address: '서울특별시 마포구 양화로 160' },
+            { label: 'B', name: '강남역', address: '서울특별시 강남구 강남대로 396' },
+          ],
         },
       ],
     },
