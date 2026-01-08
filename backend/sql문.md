@@ -1,0 +1,98 @@
+-- ============================================
+-- 약속 장소 중간지점 추천 서비스 데이터베이스 스키마
+-- ============================================
+--
+-- UUID 확장 기능 활성화 (PostgreSQL에서 UUID 사용 시 필요)
+--CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+--
+-- ============================================
+-- 1. users 테이블 (사용자)
+-- ============================================
+--CREATE TABLE IF NOT EXISTS users (
+--    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+--    "kakaoId" VARCHAR(255) NOT NULL UNIQUE,
+--    nickname VARCHAR(255) NOT NULL,
+--    "profileImage" VARCHAR(500),
+--    email VARCHAR(255),
+--    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--    "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+--);
+--
+-- users 테이블 인덱스
+--CREATE INDEX IF NOT EXISTS idx_users_kakao_id ON users("kakaoId");
+--
+-- ============================================
+-- 2. shares 테이블 (공유 링크)
+-- ============================================
+--CREATE TABLE IF NOT EXISTS shares (
+--    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+--    "shareId" VARCHAR(255) NOT NULL UNIQUE,
+--    data JSONB NOT NULL,
+--    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--    "expiresAt" TIMESTAMP NOT NULL
+--);
+--
+-- shares 테이블 인덱스
+--CREATE INDEX IF NOT EXISTS idx_shares_share_id ON shares("shareId");
+--CREATE INDEX IF NOT EXISTS idx_shares_expires_at ON shares("expiresAt");
+--
+-- ============================================
+-- 3. meetings 테이블 (기록)
+-- ============================================
+--CREATE TABLE IF NOT EXISTS meetings (
+--    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+--    "userId" UUID NOT NULL,
+--    data JSONB NOT NULL,
+--    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--    CONSTRAINT fk_meetings_user FOREIGN KEY ("userId") 
+--        REFERENCES users(id) 
+--        ON DELETE CASCADE
+--);
+--
+-- meetings 테이블 인덱스
+--CREATE INDEX IF NOT EXISTS idx_meetings_user_id ON meetings("userId");
+--CREATE INDEX IF NOT EXISTS idx_meetings_created_at ON meetings("createdAt" DESC);
+--
+-- ============================================
+-- 4. favorites 테이블 (즐겨찾기)
+-- ============================================
+--CREATE TABLE IF NOT EXISTS favorites (
+--    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+--    "userId" UUID NOT NULL,
+--    "placeId" VARCHAR(255) NOT NULL,
+--    name VARCHAR(255) NOT NULL,
+--    address VARCHAR(500) NOT NULL,
+--    lat DECIMAL(10, 6) NOT NULL,
+--    lng DECIMAL(10, 6) NOT NULL,
+--    "placeUrl" VARCHAR(500),
+--    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--    CONSTRAINT fk_favorites_user FOREIGN KEY ("userId") 
+--        REFERENCES users(id) 
+--        ON DELETE CASCADE,
+--    CONSTRAINT uq_favorites_user_place UNIQUE ("userId", "placeId")
+--);
+--
+-- favorites 테이블 인덱스
+--CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites("userId");
+--CREATE INDEX IF NOT EXISTS idx_favorites_created_at ON favorites("createdAt" DESC);
+
+-- ============================================
+-- Refresh Token 컬럼 추가 마이그레이션
+-- ============================================
+
+-- users 테이블에 refreshToken 컬럼 추가
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS "refreshToken" VARCHAR(500) NULL;
+
+-- refreshToken 인덱스 추가 (선택사항, 조회 성능 향상)
+CREATE INDEX IF NOT EXISTS idx_users_refresh_token ON users("refreshToken") 
+WHERE "refreshToken" IS NOT NULL;
+
+-- ============================================
+-- 마이그레이션 완료
+-- ============================================
+
+
+-- ============================================
+-- 데이터베이스 스키마 생성 완료
+-- ============================================
