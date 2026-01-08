@@ -48,7 +48,7 @@ export class ShareController {
   })
   async createShare(@Body() createShareDto: CreateShareDto, @Req() req: Request) {
     const user = req.user as any; // 로그인한 경우에만 존재
-    return this.shareService.create(createShareDto.data, user?.id);
+    return this.shareService.create(createShareDto.data, user?.nickname);
   }
 
   @Get(':id')

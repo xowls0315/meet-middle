@@ -4,10 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   Index,
-  ManyToOne,
-  JoinColumn,
 } from 'typeorm';
-import { User } from '../../auth/entities/user.entity';
 
 @Entity('shares')
 @Index(['expiresAt'])
@@ -41,14 +38,8 @@ export class Share {
       distance?: number;
     }>;
     used?: { category: string; radius: number };
+    userName?: string; // 로그인한 사용자가 공유한 경우 저장
   };
-
-  @Column({ nullable: true })
-  userId: string | null;
-
-  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'userId' })
-  user: User | null;
 
   @CreateDateColumn()
   createdAt: Date;
