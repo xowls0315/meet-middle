@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import ResultCard from "@/components/ResultCard";
+import ResultCard from "@/_components/ui/ResultCard";
 import Link from "next/link";
-import { HistoryListSkeleton } from "@/components/SkeletonList";
+import { HistoryListSkeleton } from "@/_components/ui/skeleton/SkeletonList";
 import { Meeting } from "@/types";
 import { getMeetings, deleteMeeting } from "@/lib/api/meetings";
 import { useAuth } from "@/hooks/useAuth";
@@ -57,7 +57,7 @@ export default function HistoryPage() {
       <div className="mb-8">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 mb-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+          className="inline-flex items-center gap-2 mb-4 px-4 py-2 text-md font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
         >
           <IoHomeOutline />
           홈으로
@@ -83,11 +83,21 @@ export default function HistoryPage() {
             <div key={meeting.id} className="bg-white rounded-xl p-6 shadow-lg border-2 border-blue-200">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <div className="text-sm text-slate-500 mb-1">{formatDate(meeting.createdAt)}</div>
-                  <div className="text-sm text-blue-600 font-medium">{meeting.participantCount}명 참가</div>
+                  <div className="text-md text-slate-500 mb-1">{formatDate(meeting.createdAt)}</div>
+                  <div className="text-md text-blue-600 font-medium mb-1">{meeting.participantCount}명 참가</div>
+                  {meeting.participants.length > 0 && (
+                    <div className="text-md text-slate-600 mt-1">
+                      {meeting.participants.map((participant, index) => (
+                        <span key={participant.label}>
+                          {participant.label}: {participant.name}
+                          {index < meeting.participants.length - 1 && ", "}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <button
-                  className="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer"
+                  className="text-md text-red-600 hover:text-red-700 font-medium cursor-pointer"
                   onClick={async () => {
                     if (!confirm("정말 삭제하시겠습니까?")) return;
                     try {

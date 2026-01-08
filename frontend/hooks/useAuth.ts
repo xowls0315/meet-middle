@@ -17,13 +17,19 @@ export function useAuth() {
       return existingToken;
     }
 
+    // Refresh Token 쿠키가 없으면 바로 null 반환 (게스트 모드)
+    if (!authApi.hasRefreshTokenCookie()) {
+      return null;
+    }
+
     try {
       // Access Token이 없으면 Refresh Token으로 발급받기
       const newToken = await authApi.getAccessTokenFromServer();
       authApi.setAccessToken(newToken);
       return newToken;
-    } catch (error) {
-      // Refresh Token도 없음 → 로그아웃 상태
+    } catch (_error) {
+      // Refresh Token도 없음 또는 만료됨 → 로그아웃 상태
+      // 401 에러는 게스트 모드이므로 조용히 처리
       authApi.setAccessToken(null);
       return null;
     }
@@ -33,14 +39,21 @@ export function useAuth() {
   const loadUser = useCallback(async () => {
     try {
       // 먼저 Access Token 복원 시도
-      await restoreAccessToken();
+      const token = await restoreAccessToken();
+
+      // 토큰이 없으면 게스트 모드이므로 사용자 정보 조회하지 않음
+      if (!token) {
+        setIsLoggedIn(false);
+        setUser(null);
+        return;
+      }
 
       // Authorization 헤더와 함께 사용자 정보 조회
       const userData = await authApi.getCurrentUser();
       setUser(userData);
       setIsLoggedIn(true);
-    } catch (error) {
-      // 401 에러는 인증 실패 (Access Token 만료 또는 없음)
+    } catch (_error) {
+      // 401 에러는 게스트 모드이므로 조용히 처리 (콘솔 에러 출력하지 않음)
       setIsLoggedIn(false);
       setUser(null);
       authApi.setAccessToken(null);
@@ -88,7 +101,8 @@ export function useAuth() {
               authApi.setAccessToken(urlToken);
             } else {
               // 프로덕션 환경: /api/auth/token 호출하여 Access Token 받기
-              const token = await authApi.getAccessTokenFromServer();
+              // 로그인 콜백 직후에는 쿠키가 아직 반영되지 않을 수 있으므로 쿠키 확인 건너뛰기
+              const token = await authApi.getAccessTokenFromServer(true);
               authApi.setAccessToken(token);
             }
 

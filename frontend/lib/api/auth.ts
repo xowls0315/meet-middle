@@ -11,10 +11,26 @@ export function startKakaoLogin(): void {
 }
 
 /**
+ * Refresh Token 쿠키 존재 여부 확인
+ * @returns Refresh Token 쿠키가 있으면 true
+ */
+export function hasRefreshTokenCookie(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split(";").some((cookie) => cookie.trim().startsWith("refresh_token="));
+}
+
+/**
  * Access Token 발급 (Refresh Token 쿠키 사용)
+ * @param skipCookieCheck 쿠키 확인을 건너뛸지 여부 (로그인 콜백 시 사용)
  * @returns Access Token
  */
-export async function getAccessTokenFromServer(): Promise<string> {
+export async function getAccessTokenFromServer(skipCookieCheck: boolean = false): Promise<string> {
+  // Refresh Token 쿠키가 없으면 에러 발생 (게스트 모드)
+  // 단, 로그인 콜백 시에는 쿠키가 아직 반영되지 않을 수 있으므로 확인 건너뛰기 가능
+  if (!skipCookieCheck && !hasRefreshTokenCookie()) {
+    throw new Error("Refresh Token 쿠키가 없습니다");
+  }
+
   const response = await fetch(`${BACKEND_URL}/api/auth/token`, {
     method: "GET",
     credentials: "include", // Refresh Token 쿠키 전송 필수

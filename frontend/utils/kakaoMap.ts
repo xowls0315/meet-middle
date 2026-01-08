@@ -30,3 +30,4 @@ export function getKakaoMapUrl(placeUrl: string | undefined, placeId: string, la
 
   return mapUrl;
 }
+

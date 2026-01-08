@@ -1,6 +1,6 @@
 "use client";
 
-import { getKakaoMapUrl } from "@/lib/utils/kakaoMap";
+import { getKakaoMapUrl } from "@/utils/kakaoMap";
 
 interface Place {
   placeId: string;
@@ -17,9 +17,10 @@ interface ResultCardProps {
   isFinal?: boolean;
   onSelect?: () => void;
   hideSelectButton?: boolean;
+  categoryName?: string; // 카테고리 이름 (예: "지하철역")
 }
 
-export default function ResultCard({ place, isFinal = false, onSelect, hideSelectButton = false }: ResultCardProps) {
+export default function ResultCard({ place, isFinal = false, onSelect, hideSelectButton = false, categoryName }: ResultCardProps) {
   // 카카오맵 지도 URL 생성
   const mapUrl = getKakaoMapUrl(place.placeUrl, place.placeId, place.lat, place.lng, place.name);
 
@@ -32,7 +33,10 @@ export default function ResultCard({ place, isFinal = false, onSelect, hideSelec
     >
       {isFinal && (
         <div className="flex items-center gap-2 mb-3">
-          <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-bold rounded-full">최종 추천</span>
+          <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-bold rounded-full">
+            최종 추천
+            {categoryName && <span className="ml-1">({categoryName})</span>}
+          </span>
         </div>
       )}
 
@@ -43,7 +47,14 @@ export default function ResultCard({ place, isFinal = false, onSelect, hideSelec
       {place.distance && <div className="text-sm text-slate-500 mb-4">중심점으로부터 거리: {place.distance.toFixed(0)}m</div>}
 
       <div className="flex items-center justify-between">
-        <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        {/* 외부 링크(카카오맵)이므로 <a> 태그 사용 (Next.js Link는 외부 링크에 사용 불가) */}
+        <a
+          href={mapUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
+          onClick={(e) => e.stopPropagation()}
+        >
           카카오맵에서 보기
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -65,3 +76,4 @@ export default function ResultCard({ place, isFinal = false, onSelect, hideSelec
     </div>
   );
 }
+

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
-import "./globals.css";
-import Header from "@/components/Header";
+import "../styles/globals.css";
+import Header from "@/_components/layout/Header";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Meet-Middle - 약속 장소 중간지점 추천",
   description: "2~4명의 출발지를 입력하면 최적의 만남 장소를 추천해드립니다",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
