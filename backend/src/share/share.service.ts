@@ -123,6 +123,28 @@ export class ShareService {
   }
 
   /**
+   * 카카오 placeUrl 정규화 및 생성
+   */
+  private normalizePlaceUrl(placeUrl: string | undefined, placeId: string): string {
+    // place_url이 있고 올바른 형식이면 그대로 사용
+    if (placeUrl && placeUrl.startsWith('http')) {
+      // 카카오 place_url 형식 검증 및 수정
+      // 카카오 API는 때때로 http://place.map.kakao.com/{place_id} 형식으로 반환하지만
+      // 실제로는 http://place.map.kakao.com/m/{place_id} 형식이 필요함
+      if (placeUrl.includes('place.map.kakao.com') && !placeUrl.includes('/m/')) {
+        // /m/ 경로가 없으면 추가
+        const placeIdFromUrl = placeUrl.split('/').pop() || placeId;
+        return `http://place.map.kakao.com/m/${placeIdFromUrl}`;
+      }
+      return placeUrl;
+    }
+
+    // place_url이 없거나 잘못된 형식이면 placeId로부터 생성
+    // 카카오 장소 URL 형식: http://place.map.kakao.com/m/{place_id}
+    return `http://place.map.kakao.com/m/${placeId}`;
+  }
+
+  /**
    * 공유 링크 조회
    */
   async findOne(shareId: string): Promise<Partial<ShareData>> {
@@ -142,10 +164,23 @@ export class ShareService {
 
     // 응답 데이터 구성
     const { anchor, final, candidates, participants, userName } = share.data;
+    
+    // final 장소의 placeUrl이 없으면 생성
+    const finalWithUrl = {
+      ...final,
+      placeUrl: this.normalizePlaceUrl(final.placeUrl, final.placeId),
+    };
+
+    // candidates의 placeUrl도 정규화
+    const candidatesWithUrl = candidates?.map((candidate) => ({
+      ...candidate,
+      placeUrl: this.normalizePlaceUrl(candidate.placeUrl, candidate.placeId),
+    }));
+
     const result: Partial<ShareData> = {
       anchor,
-      final,
-      ...(candidates?.length > 0 && { candidates }),
+      final: finalWithUrl,
+      ...(candidatesWithUrl && candidatesWithUrl.length > 0 && { candidates: candidatesWithUrl }),
       ...(participants?.length > 0 && { participants }),
       ...(userName && {
         user: {
