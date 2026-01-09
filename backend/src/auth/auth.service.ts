@@ -1,11 +1,14 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
+import axios from 'axios';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -143,6 +146,121 @@ export class AuthService {
     if (user) {
       user.refreshToken = null;
       await this.userRepository.save(user);
+    }
+  }
+
+  /**
+   * 카카오 OAuth code로 사용자 정보 가져오기 및 로그인 처리
+   */
+  async handleKakaoCode(code: string): Promise<{ accessToken: string; refreshToken: string; user: any }> {
+    const clientID = process.env.KAKAO_CLIENT_ID;
+    const clientSecret = process.env.KAKAO_CLIENT_SECRET;
+    const frontendUrl = process.env.FRONTEND_URL;
+
+    // 환경변수 검증
+    if (!clientID || !clientSecret) {
+      this.logger.error('Kakao client credentials not configured');
+      throw new UnauthorizedException('Kakao client credentials not configured');
+    }
+
+    if (!frontendUrl) {
+      this.logger.error('FRONTEND_URL is not configured');
+      throw new UnauthorizedException('FRONTEND_URL is not configured');
+    }
+
+    const redirectUri = `${frontendUrl}/auth/kakao/callback`;
+
+    try {
+      // 1. 카카오 Access Token 발급
+      let tokenResponse;
+      try {
+        tokenResponse = await axios.post(
+          'https://kauth.kakao.com/oauth/token',
+          new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: clientID,
+            client_secret: clientSecret,
+            redirect_uri: redirectUri,
+            code,
+          }),
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          },
+        );
+      } catch (error: any) {
+        this.logger.error(`Kakao token request failed: ${error.message}`);
+        if (error.response?.data) {
+          const errorData = error.response.data;
+          this.logger.error(`Kakao token API error: ${JSON.stringify(errorData)}`);
+          
+          // 구체적인 에러 메시지 제공
+          if (errorData.error === 'invalid_grant') {
+            throw new UnauthorizedException('Invalid authorization code. The code may have expired or already been used.');
+          }
+          if (errorData.error === 'invalid_request') {
+            throw new UnauthorizedException(`Invalid request: ${errorData.error_description || 'Please check your redirect URI configuration'}`);
+          }
+        }
+        throw new UnauthorizedException('Failed to get Kakao access token');
+      }
+
+      const kakaoAccessToken = tokenResponse?.data?.access_token;
+      if (!kakaoAccessToken) {
+        this.logger.error('Kakao access token not found in response');
+        throw new UnauthorizedException('Failed to get Kakao access token');
+      }
+
+      // 2. 카카오 사용자 정보 가져오기
+      let userInfoResponse;
+      try {
+        userInfoResponse = await axios.get('https://kapi.kakao.com/v2/user/me', {
+          headers: {
+            Authorization: `Bearer ${kakaoAccessToken}`,
+          },
+          params: {
+            property_keys: JSON.stringify(['kakao_account.email', 'properties.nickname', 'properties.profile_image']),
+          },
+        });
+      } catch (error: any) {
+        this.logger.error(`Kakao user info request failed: ${error.message}`);
+        if (error.response?.data) {
+          this.logger.error(`Kakao user info API error: ${JSON.stringify(error.response.data)}`);
+        }
+        throw new UnauthorizedException('Failed to get user information from Kakao');
+      }
+
+      const kakaoUserData = userInfoResponse?.data;
+      if (!kakaoUserData || !kakaoUserData.id) {
+        this.logger.error('Invalid user data from Kakao');
+        throw new UnauthorizedException('Invalid user data from Kakao');
+      }
+
+      const kakaoId = kakaoUserData.id.toString();
+      const nickname = kakaoUserData.properties?.nickname || kakaoUserData.kakao_account?.profile?.nickname || '카카오사용자';
+      const profileImage = kakaoUserData.properties?.profile_image || kakaoUserData.kakao_account?.profile?.profile_image_url || null;
+      const email = kakaoUserData.kakao_account?.email || null;
+
+      // 3. 사용자 정보로 로그인 처리
+      const kakaoUser = {
+        kakaoId,
+        nickname,
+        profileImage,
+        email,
+        accessToken: kakaoAccessToken,
+      };
+
+      return await this.login(kakaoUser);
+    } catch (error: any) {
+      // 이미 UnauthorizedException이면 그대로 throw
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      
+      // 예상치 못한 에러
+      this.logger.error(`Unexpected error in handleKakaoCode: ${error.message}`, error.stack);
+      throw new UnauthorizedException('Failed to authenticate with Kakao');
     }
   }
 }
