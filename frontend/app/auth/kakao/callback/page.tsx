@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import apiClient from "@/lib/api/apiClient";
 import * as authApi from "@/lib/api/auth";
 
-export default function KakaoCallbackPage() {
+// 동적 렌더링 강제 (OAuth 콜백은 항상 동적)
+export const dynamic = "force-dynamic";
+
+function KakaoCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +43,9 @@ export default function KakaoCallbackPage() {
         } else {
           throw new Error("Access Token을 받지 못했습니다.");
         }
-      } catch (error: any) {
-        console.error("카카오 로그인 콜백 처리 오류:", error);
+      } catch (err) {
+        console.error("카카오 로그인 콜백 처리 오류:", err);
+        const error = err as { response?: { data?: { error?: string } }; message?: string };
         setError(error.response?.data?.error || error.message || "로그인에 실패했습니다.");
 
         // 에러 페이지로 이동
@@ -81,5 +85,26 @@ export default function KakaoCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function KakaoCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-white">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center animate-spin">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <p className="text-gray-700 font-medium mb-2">로딩 중...</p>
+          </div>
+        </div>
+      }
+    >
+      <KakaoCallbackContent />
+    </Suspense>
   );
 }
