@@ -100,6 +100,8 @@ export function useAuth() {
   }, []);
 
   // 카카오 로그인 콜백 처리 (리다이렉트 후)
+  // iOS OAuth 콜백: 콜백 페이지(/auth/kakao/callback)에서 이미 토큰을 받아서 저장했으므로
+  // 여기서는 단순히 사용자 정보만 다시 로드하면 됩니다.
   useEffect(() => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
@@ -110,19 +112,15 @@ export function useAuth() {
           try {
             setIsLoading(true);
 
-            // 개발 환경: URL 파라미터에서 Access Token 추출 (선택적)
+            // 개발 환경: URL 파라미터에서 Access Token 추출 (선택적, 하위 호환)
             const urlToken = urlParams.get("access_token");
 
             if (urlToken) {
               // 개발 환경: URL 파라미터에 Access Token이 있는 경우
               authApi.setAccessToken(urlToken);
-            } else {
-              // 프로덕션 환경: /api/auth/token 호출하여 Access Token 받기
-              // 로그인 콜백 직후에는 쿠키가 아직 반영되지 않을 수 있으므로 쿠키 확인 건너뛰기
-              // 모바일에서 쿠키 반영을 위해 자동 재시도 로직이 포함되어 있음
-              const token = await authApi.getAccessTokenFromServer(true);
-              authApi.setAccessToken(token);
             }
+            // iOS OAuth 콜백: 콜백 페이지에서 이미 토큰을 localStorage에 저장했으므로
+            // 별도로 토큰을 받을 필요 없이 사용자 정보만 로드
 
             // 사용자 정보 다시 로드
             await loadUser();
@@ -130,7 +128,7 @@ export function useAuth() {
             // URL 정리 (보안)
             window.history.replaceState({}, document.title, window.location.pathname);
           } catch (error) {
-            console.error("로그인 후 토큰 발급 실패:", error);
+            console.error("로그인 후 사용자 정보 로드 실패:", error);
             setIsLoggedIn(false);
             setUser(null);
             authApi.setAccessToken(null);
