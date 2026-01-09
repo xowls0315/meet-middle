@@ -205,9 +205,60 @@ export default function Home() {
       const url = shareResponse.url || `${typeof window !== "undefined" ? window.location.origin : ""}/share/${shareResponse.shareId}`;
       setShareUrl(url);
 
-      // 클립보드 복사
-      await navigator.clipboard.writeText(url);
-      alert("공유 링크가 클립보드에 복사되었습니다!");
+      // 모바일 Web Share API 우선 사용
+      if (typeof navigator !== "undefined" && navigator.share) {
+        try {
+          await navigator.share({
+            title: "만남 장소 추천",
+            text: "만남 장소 추천 결과를 공유합니다",
+            url: url,
+          });
+          alert("공유가 완료되었습니다!");
+          return;
+        } catch (shareError: unknown) {
+          // 사용자가 공유를 취소한 경우
+          const error = shareError as { name?: string };
+          if (error.name === "AbortError") {
+            return; // 조용히 종료
+          }
+          // 다른 에러는 클립보드 복사로 fallback
+        }
+      }
+
+      // 클립보드 복사 (Fallback)
+      try {
+        // 모바일 Safari를 위한 안전한 클립보드 복사
+        if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(url);
+          alert("공유 링크가 클립보드에 복사되었습니다!");
+        } else {
+          // 구형 브라우저를 위한 fallback
+          const textArea = document.createElement("textarea");
+          textArea.value = url;
+          textArea.style.position = "fixed";
+          textArea.style.left = "-999999px";
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+
+          try {
+            const successful = document.execCommand("copy");
+            if (successful) {
+              alert("공유 링크가 클립보드에 복사되었습니다!");
+            } else {
+              throw new Error("복사 실패");
+            }
+          } catch (err) {
+            // 복사 실패 시 URL을 직접 표시
+            prompt("공유 링크를 복사하세요:", url);
+          } finally {
+            document.body.removeChild(textArea);
+          }
+        }
+      } catch (clipboardError) {
+        // 클립보드 복사 실패 시 URL을 직접 표시
+        prompt("공유 링크를 복사하세요:", url);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "공유 링크 생성 중 오류가 발생했습니다.";
       alert(errorMessage);

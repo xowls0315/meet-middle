@@ -1,5 +1,5 @@
 /**
- * 카카오맵 place.map.kakao.com URL을 map.kakao.com 지도 URL로 변환
+ * 카카오맵 place.map.kakao.com URL을 모바일/데스크탑 호환 URL로 변환
  * @param placeUrl 카카오 장소 URL (예: https://place.map.kakao.com/SES1813)
  * @param placeId 카카오 장소 ID (예: SES1813)
  * @param lat 위도
@@ -8,6 +8,9 @@
  * @returns 카카오맵 지도 URL
  */
 export function getKakaoMapUrl(placeUrl: string | undefined, placeId: string, lat: number, lng: number, name: string): string {
+  // 모바일 감지
+  const isMobile = typeof window !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
   // place.map.kakao.com URL에서 placeId 추출
   let extractedPlaceId = placeId;
 
@@ -18,16 +21,16 @@ export function getKakaoMapUrl(placeUrl: string | undefined, placeId: string, la
     }
   }
 
-  // 카카오맵 좌표계 변환 (WGS84 -> Web Mercator EPSG:3857)
-  // Web Mercator 좌표계는 메르카토르 도법을 사용
-  const EARTH_RADIUS = 6378137; // 지구 반지름 (미터)
-  const x = lng * ((EARTH_RADIUS * Math.PI) / 180); // 경도 -> X
-  const y = Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 180 / 2)) * EARTH_RADIUS; // 위도 -> Y
-
-  // 카카오맵 지도 URL 생성
-  const encodedName = encodeURIComponent(name);
-  const mapUrl = `https://map.kakao.com/?urlX=${x}&urlY=${y}&urlLevel=3&itemId=${extractedPlaceId}&q=${encodedName}&srcid=${extractedPlaceId}&map_type=TYPE_MAP`;
-
-  return mapUrl;
+  if (isMobile) {
+    // 모바일: 카카오맵 앱 또는 모바일 웹 사용
+    // 카카오맵 앱이 설치되어 있으면 자동으로 앱 열림
+    const encodedName = encodeURIComponent(name);
+    // 모바일 카카오맵 URL (위도, 경도 기반)
+    return `https://map.kakao.com/link/map/${encodedName},${lat},${lng}`;
+  } else {
+    // 데스크탑: 기존 방식 유지하되 간소화
+    const encodedName = encodeURIComponent(name);
+    // 간단한 카카오맵 검색 URL 사용
+    return `https://map.kakao.com/link/search/${encodedName}`;
+  }
 }
-
