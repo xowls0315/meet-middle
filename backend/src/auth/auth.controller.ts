@@ -66,30 +66,19 @@ export class AuthController {
         await this.authService.login(user);
 
       // Refresh Token만 쿠키에 저장 (보안 - HttpOnly로 XSS 방지)
-      // 모바일 호환성을 위한 쿠키 설정: sameSite: 'none' + secure: true (HTTPS일 때 필수)
-      const isProduction = process.env.NODE_ENV === 'production';
-      const isHTTPS = req.protocol === 'https' || isProduction;
-      
+      // 모바일 호환성을 위한 쿠키 설정: sameSite: 'none' + secure: true (프로덕션 환경)
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
-        sameSite: isHTTPS ? 'none' : 'lax', // HTTPS면 'none', 아니면 'lax'
-        secure: isHTTPS, // HTTPS일 때만 true
-        path: '/', // 모든 경로에서 접근 가능
+        secure: true,        // 항상 true
+        sameSite: 'none',    // 항상 none
+        path: '/',
         maxAge: 14 * 24 * 60 * 60 * 1000, // 14일
-        // domain 제거: 명시적 설정 시 모바일에서 문제 발생 가능
       });
 
-      // Access Token은 URL 파라미터로 전달 (프론트엔드가 메모리/localStorage에 저장)
-      // 프로덕션에서는 보안을 위해 URL 파라미터 사용 안 함
+      // 프로덕션 환경: 보안을 위해 쿠키만 사용 (URL 파라미터 사용 안 함)
+      // 프론트엔드는 /api/auth/token 엔드포인트를 호출하여 Access Token 받기
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      if (isProduction) {
-        // 프로덕션: 쿠키만 사용 (보안)
-        // 프론트엔드는 /api/auth/token 엔드포인트를 호출하여 Access Token 받기
-        res.redirect(`${frontendUrl}/?login=success`);
-      } else {
-        // 개발 환경: URL 파라미터로 전달 (테스트용)
-        res.redirect(`${frontendUrl}/?login=success&access_token=${encodeURIComponent(accessToken)}`);
-      }
+      res.redirect(`${frontendUrl}/?login=success`);
     } catch (error) {
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       res.redirect(`${frontendUrl}/?login=error`);
@@ -217,15 +206,11 @@ export class AuthController {
     await this.authService.logout(user.id);
 
     // Refresh Token 쿠키 제거 (설정은 저장 시와 동일하게)
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isHTTPS = req.protocol === 'https' || isProduction;
-    
     res.clearCookie('refresh_token', {
       httpOnly: true,
-      sameSite: isHTTPS ? 'none' : 'lax',
-      secure: isHTTPS,
+      secure: true,        // 항상 true
+      sameSite: 'none',    // 항상 none
       path: '/',
-      // domain 제거: 명시적 설정 시 모바일에서 문제 발생 가능
     });
 
     // 카카오 로그아웃 URL 생성 및 직접 리다이렉트
