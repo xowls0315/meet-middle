@@ -109,6 +109,16 @@ apiClient.interceptors.response.use(
 
     // 429 Rate Limit 에러 처리
     if (error.response?.status === 429) {
+      // 인증 관련 엔드포인트는 조용히 처리 (콘솔 에러 안 띄움)
+      const authEndpoints = ["/auth/me", "/auth/refresh", "/auth/token"];
+      const isAuthEndpoint = authEndpoints.some((endpoint) => originalRequest.url?.includes(endpoint));
+
+      if (isAuthEndpoint) {
+        const silentError = new Error("Rate limit exceeded");
+        silentError.name = "SilentRateLimitError";
+        return Promise.reject(silentError);
+      }
+
       const errorMessage = (error.response.data as { error?: string; message?: string })?.error || "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
       return Promise.reject(new Error(errorMessage));
     }

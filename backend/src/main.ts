@@ -35,10 +35,16 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  // CORS 설정
+  // CORS 설정 (모바일 호환성 개선)
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
+    origin: [
+      'https://meet-middle-frontend.vercel.app',
+      'http://localhost:3000',
+    ],
+    credentials: true, // 쿠키 전송 허용 (모바일 필수)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Set-Cookie', 'X-New-Access-Token'], // 토큰 자동 갱신 헤더 노출
   });
 
   // Cookie parser 미들웨어

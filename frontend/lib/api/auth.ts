@@ -1,13 +1,29 @@
 import apiClient from "./apiClient";
 import { User } from "@/types";
+import { isInAppBrowser, openInExternalBrowser } from "@/utils/browser";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://meet-middle-backend.onrender.com";
 
 /**
  * 카카오 로그인 시작 (리다이렉트)
+ * 인앱 브라우저에서는 외부 브라우저로 열기 안내
  */
 export function startKakaoLogin(): void {
-  window.location.href = `${BACKEND_URL}/api/auth/kakao`;
+  const loginUrl = `${BACKEND_URL}/api/auth/kakao`;
+
+  if (isInAppBrowser()) {
+    // 인앱 브라우저 감지 → 외부 브라우저로 열기 안내
+    const shouldOpen = confirm(
+      "카카오 로그인을 위해 외부 브라우저에서 열어주세요.\n\n" + "외부 브라우저로 열까요?"
+    );
+
+    if (shouldOpen) {
+      openInExternalBrowser(loginUrl);
+    }
+  } else {
+    // 일반 브라우저 → 바로 로그인
+    window.location.href = loginUrl;
+  }
 }
 
 /**
@@ -22,26 +38,30 @@ export function hasRefreshTokenCookie(): boolean {
 /**
  * Access Token 발급 (Refresh Token 쿠키 사용)
  * @param skipCookieCheck 쿠키 확인을 건너뛸지 여부 (로그인 콜백 시 사용)
+ * @param retryCount 재시도 횟수 (모바일에서 쿠키 반영 대기)
  * @returns Access Token
  */
-export async function getAccessTokenFromServer(skipCookieCheck: boolean = false): Promise<string> {
+export async function getAccessTokenFromServer(skipCookieCheck: boolean = false, retryCount: number = 0): Promise<string> {
   // Refresh Token 쿠키가 없으면 에러 발생 (게스트 모드)
   // 단, 로그인 콜백 시에는 쿠키가 아직 반영되지 않을 수 있으므로 확인 건너뛰기 가능
   if (!skipCookieCheck && !hasRefreshTokenCookie()) {
     throw new Error("Refresh Token 쿠키가 없습니다");
   }
 
-  const response = await fetch(`${BACKEND_URL}/api/auth/token`, {
-    method: "GET",
-    credentials: "include", // Refresh Token 쿠키 전송 필수
-  });
-
-  if (!response.ok) {
-    throw new Error("Access Token 발급 실패");
+  try {
+    // apiClient를 사용하여 쿠키 자동 전송 (withCredentials: true)
+    const response = await apiClient.get<{ accessToken: string }>("/auth/token");
+    return response.data.accessToken;
+  } catch (error: any) {
+    // 모바일에서 쿠키가 아직 반영되지 않은 경우 재시도
+    // 최대 3회, 각각 500ms, 1000ms, 1500ms 대기
+    if (skipCookieCheck && retryCount < 3 && (error.response?.status === 401 || error.response?.status === 403)) {
+      await new Promise((resolve) => setTimeout(resolve, (retryCount + 1) * 500));
+      return getAccessTokenFromServer(skipCookieCheck, retryCount + 1);
+    }
+    
+    throw new Error(error.response?.data?.error || error.message || "Access Token 발급 실패");
   }
-
-  const data = await response.json();
-  return data.accessToken;
 }
 
 /**
