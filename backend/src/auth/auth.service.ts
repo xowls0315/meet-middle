@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import axios from 'axios';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -36,6 +37,58 @@ export class AuthService {
   }
 
   /**
+   * 공통 토큰 발급 로직
+   */
+  private async issueTokensForUser(user: User) {
+    const { accessToken, refreshToken } = this.generateTokens(user.id);
+
+    await this.userRepository.update(user.id, {
+      refreshToken,
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        kakaoId: user.kakaoId,
+        username: user.username,
+        nickname: user.nickname,
+        profileImage: user.profileImage,
+        email: user.email,
+      },
+    };
+  }
+
+  /**
+   * 비밀번호 해시/검증 (Node crypto 사용)
+   */
+  private async hashPassword(password: string): Promise<string> {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const derivedKey: Buffer = await new Promise((resolve, reject) => {
+      crypto.scrypt(password, salt, 64, (err, key) => {
+        if (err) reject(err);
+        else resolve(key);
+      });
+    });
+    return `${salt}:${derivedKey.toString('hex')}`;
+  }
+
+  private async verifyPassword(password: string, stored: string): Promise<boolean> {
+    const [salt, key] = stored.split(':');
+    if (!salt || !key) {
+      return false;
+    }
+    const derivedKey: Buffer = await new Promise((resolve, reject) => {
+      crypto.scrypt(password, salt, 64, (err, derived) => {
+        if (err) reject(err);
+        else resolve(derived);
+      });
+    });
+    return crypto.timingSafeEqual(Buffer.from(key, 'hex'), derivedKey);
+  }
+
+  /**
    * 사용자 찾기 또는 생성
    */
   private async findOrCreateUser(kakaoUser: any): Promise<User> {
@@ -64,25 +117,7 @@ export class AuthService {
 
   async login(kakaoUser: any) {
     const user = await this.findOrCreateUser(kakaoUser);
-
-    const { accessToken, refreshToken } = this.generateTokens(user.id);
-
-    // Refresh Token DB 저장 (중요)
-    await this.userRepository.update(user.id, {
-      refreshToken,
-    });
-
-    return {
-      accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
-        kakaoId: user.kakaoId,
-        nickname: user.nickname,
-        profileImage: user.profileImage,
-        email: user.email,
-      },
-    };
+    return this.issueTokensForUser(user);
   }
 
   /**
@@ -262,6 +297,90 @@ export class AuthService {
       this.logger.error(`Unexpected error in handleKakaoCode: ${error.message}`, error.stack);
       throw new UnauthorizedException('Failed to authenticate with Kakao');
     }
+  }
+
+  /**
+   * 로컬 회원가입 (ID/PW)
+   */
+  async registerLocal(username: string, email: string, password: string) {
+    if (!username || !email || !password) {
+      throw new BadRequestException('username, email and password are required');
+    }
+
+    const existingByUsername = await this.userRepository.findOne({ where: { username } });
+    if (existingByUsername) {
+      throw new BadRequestException('Username already in use');
+    }
+
+    if (email) {
+      const existingByEmail = await this.userRepository.findOne({ where: { email } });
+      if (existingByEmail) {
+        throw new BadRequestException('Email already in use');
+      }
+    }
+
+    const passwordHash = await this.hashPassword(password);
+
+    const user = this.userRepository.create({
+      kakaoId: null,
+      username,
+      nickname: username,
+      email,
+      profileImage: null,
+      passwordHash,
+    });
+
+    await this.userRepository.save(user);
+    return this.issueTokensForUser(user);
+  }
+
+  /**
+   * 로컬 로그인 (ID 또는 이메일 + PW)
+   */
+  async loginLocal(identifier: string, password: string) {
+    if (!identifier || !password) {
+      throw new BadRequestException('identifier and password are required');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: [{ username: identifier }, { email: identifier }],
+    });
+
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isValid = await this.verifyPassword(password, user.passwordHash);
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return this.issueTokensForUser(user);
+  }
+
+  /**
+   * ID 찾기 (이메일로 username 조회)
+   * 실제 서비스라면 이메일 발송이 필요하지만, 여기서는 단순 조회만 반환
+   */
+  async findUsernameByEmail(email: string): Promise<{ username: string | null }> {
+    if (!email) {
+      throw new BadRequestException('email is required');
+    }
+
+    const user = await this.userRepository.findOne({ where: { email } });
+    return { username: user?.username ?? null };
+  }
+
+  /**
+   * 비밀번호 찾기 요청 (stub)
+   * 실제 서비스에서는 리셋 토큰 발급 + 이메일 발송 등이 필요합니다.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    if (!email) {
+      throw new BadRequestException('email is required');
+    }
+    // 여기서는 구현을 단순화하여 항상 성공 응답만 반환
+    return;
   }
 }
 

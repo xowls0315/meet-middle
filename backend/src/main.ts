@@ -10,7 +10,10 @@ async function bootstrap() {
   const isProduction = process.env.NODE_ENV === 'production';
   if (isProduction) {
     const requiredEnvVars = [
-      'DB_URL',
+      'DB_HOST',
+      'DB_USERNAME',
+      'DB_PASSWORD',
+      'DB_DATABASE',
       'KAKAO_REST_KEY',
       'KAKAO_CLIENT_ID',
       'KAKAO_CLIENT_SECRET',

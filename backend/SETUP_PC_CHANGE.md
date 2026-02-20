@@ -24,7 +24,7 @@ PC를 바꾼 뒤 DBeaver(PostgreSQL), 백엔드 .env, 카카오 개발자 설정
 
 ### 1.3 final.sql 내용 요약
 
-- `uuid-ossp` 확장 생성
+- UUID 생성 (PostgreSQL 13+ 기본 함수 사용)
 - `users` (카카오 로그인 사용자 + refreshToken)
 - `shares` (공유 링크)
 - `meetings` (약속 기록, users 참조)
@@ -48,8 +48,15 @@ PORT=3001
 BACKEND_URL=http://localhost:3001
 FRONTEND_URL=http://localhost:3000
 
-# DB (로컬 PostgreSQL 예시 – 본인 DB명/비밀번호로 수정)
-DB_URL=postgresql://postgres:비밀번호@localhost:5432/meet_middle
+# DB (호스트/포트 방식 – 본인 DB 정보로 수정)
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=비밀번호
+DB_DATABASE=meet_middle
+# 필요 시 (사용하지 않으면 public 스키마 사용 권장)
+DB_SCHEMA=public
+DB_SSL=false
 
 # 카카오 (아래 3. 카카오 개발자 설정에서 발급 후 입력)
 KAKAO_REST_KEY=발급받은_REST_API_키
@@ -88,9 +95,16 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 ### 2.4 DB_URL 형식
 
-- 로컬:  
-  `postgresql://사용자명:비밀번호@localhost:5432/DB이름`
-- DBeaver에서 쓰는 호스트/포트/DB명/사용자/비밀번호와 동일하게 맞추면 됩니다.
+이 프로젝트는 `.env`에서 `DB_HOST/DB_PORT/DB_USERNAME/DB_PASSWORD/DB_DATABASE` 형식으로 DB 연결 정보를 받습니다.
+
+- 로컬 PostgreSQL 예시:
+  - `DB_HOST=localhost`
+  - `DB_PORT=5432`
+  - `DB_USERNAME=postgres`
+  - `DB_PASSWORD=비밀번호`
+  - `DB_DATABASE=meet_middle`
+
+`DB_SSL=true`는 Render/Neon 같은 클라우드 DB에서 보통 필요합니다.
 
 ---
 

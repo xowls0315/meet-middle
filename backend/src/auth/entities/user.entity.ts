@@ -18,8 +18,11 @@ export class User {
     if (!this.id) this.id = uuidv4();
   }
 
-  @Column({ unique: true })
-  kakaoId: string;
+  @Column({ unique: true, nullable: true })
+  kakaoId: string | null;
+
+  @Column({ unique: true, nullable: true })
+  username: string | null;
 
   @Column()
   nickname: string;
@@ -29,6 +32,9 @@ export class User {
 
   @Column({ nullable: true })
   email: string;
+
+  @Column({ nullable: true })
+  passwordHash: string | null;
 
   @Column({ nullable: true, type: 'varchar' })
   refreshToken: string | null;

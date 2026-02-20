@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { User } from "@/types";
 import * as authApi from "@/lib/api/auth";
 
@@ -9,6 +10,7 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const isLoadingRef = useRef(false); // 중복 요청 방지
+  const searchParams = useSearchParams();
 
   // Access Token 복원 (새로고침 시)
   const restoreAccessToken = useCallback(async () => {
@@ -18,13 +20,10 @@ export function useAuth() {
       return existingToken;
     }
 
-    // Refresh Token 쿠키가 없으면 바로 null 반환 (게스트 모드)
-    if (!authApi.hasRefreshTokenCookie()) {
-      return null;
-    }
-
     try {
-      // Access Token이 없으면 Refresh Token으로 발급받기
+      // Access Token이 없으면 Refresh Token(쿠키)로 발급받기
+      // Refresh Token은 HttpOnly 쿠키라 JS로 존재 여부를 확인할 수 없으므로,
+      // 서버에 요청해보고 실패(401/403)면 게스트로 판단합니다.
       const newToken = await authApi.getAccessTokenFromServer();
       authApi.setAccessToken(newToken);
       return newToken;
@@ -103,44 +102,43 @@ export function useAuth() {
   // iOS OAuth 콜백: 콜백 페이지(/auth/kakao/callback)에서 이미 토큰을 받아서 저장했으므로
   // 여기서는 단순히 사용자 정보만 다시 로드하면 됩니다.
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const loginStatus = urlParams.get("login");
+    const loginStatus = searchParams?.get("login");
 
-      if (loginStatus === "success") {
-        const handleLoginSuccess = async () => {
-          try {
-            setIsLoading(true);
+    if (loginStatus === "success") {
+      const handleLoginSuccess = async () => {
+        try {
+          setIsLoading(true);
 
-            // 개발 환경: URL 파라미터에서 Access Token 추출 (선택적, 하위 호환)
-            const urlToken = urlParams.get("access_token");
+          // 개발 환경: URL 파라미터에서 Access Token 추출 (선택적, 하위 호환)
+          const urlToken = searchParams.get("access_token");
 
-            if (urlToken) {
-              // 개발 환경: URL 파라미터에 Access Token이 있는 경우
-              authApi.setAccessToken(urlToken);
-            }
-            // iOS OAuth 콜백: 콜백 페이지에서 이미 토큰을 localStorage에 저장했으므로
-            // 별도로 토큰을 받을 필요 없이 사용자 정보만 로드
-
-            // 사용자 정보 다시 로드
-            await loadUser();
-
-            // URL 정리 (보안)
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } catch (error) {
-            console.error("로그인 후 사용자 정보 로드 실패:", error);
-            setIsLoggedIn(false);
-            setUser(null);
-            authApi.setAccessToken(null);
-          } finally {
-            setIsLoading(false);
+          if (urlToken) {
+            // 개발 환경: URL 파라미터에 Access Token이 있는 경우
+            authApi.setAccessToken(urlToken);
           }
-        };
+          // iOS OAuth 콜백: 콜백 페이지에서 이미 토큰을 localStorage에 저장했으므로
+          // 별도로 토큰을 받을 필요 없이 사용자 정보만 로드
 
-        handleLoginSuccess();
-      }
+          // 사용자 정보 다시 로드
+          await loadUser();
+
+          // URL 정리 (보안)
+          if (typeof window !== "undefined") {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } catch (error) {
+          console.error("로그인 후 사용자 정보 로드 실패:", error);
+          setIsLoggedIn(false);
+          setUser(null);
+          authApi.setAccessToken(null);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      handleLoginSuccess();
     }
-  }, [loadUser]);
+  }, [loadUser, searchParams]);
 
   return {
     user,

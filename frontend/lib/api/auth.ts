@@ -27,40 +27,44 @@ export function startKakaoLogin(): void {
 }
 
 /**
- * Refresh Token 쿠키 존재 여부 확인
- * @returns Refresh Token 쿠키가 있으면 true
- */
-export function hasRefreshTokenCookie(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.cookie.split(";").some((cookie) => cookie.trim().startsWith("refresh_token="));
-}
-
-/**
  * Access Token 발급 (Refresh Token 쿠키 사용)
- * @param skipCookieCheck 쿠키 확인을 건너뛸지 여부 (로그인 콜백 시 사용)
+ * - Refresh Token은 HttpOnly 쿠키라 JS로 존재 여부를 확인할 수 없음
+ * - 따라서 항상 서버에 요청해보고(쿠키는 자동 전송), 실패(401/403)면 게스트로 판단
  * @param retryCount 재시도 횟수 (모바일에서 쿠키 반영 대기)
  * @returns Access Token
  */
-export async function getAccessTokenFromServer(skipCookieCheck: boolean = false, retryCount: number = 0): Promise<string> {
-  // Refresh Token 쿠키가 없으면 에러 발생 (게스트 모드)
-  // 단, 로그인 콜백 시에는 쿠키가 아직 반영되지 않을 수 있으므로 확인 건너뛰기 가능
-  if (!skipCookieCheck && !hasRefreshTokenCookie()) {
-    throw new Error("Refresh Token 쿠키가 없습니다");
-  }
-
+export async function getAccessTokenFromServer(retryCount: number = 0): Promise<string> {
   try {
-    // apiClient를 사용하여 쿠키 자동 전송 (withCredentials: true)
-    const response = await apiClient.get<{ accessToken: string }>("/auth/token");
-    return response.data.accessToken;
-  } catch (error: any) {
-    // 모바일에서 쿠키가 아직 반영되지 않은 경우 재시도
-    // 최대 3회, 각각 500ms, 1000ms, 1500ms 대기
-    if (skipCookieCheck && retryCount < 3 && (error.response?.status === 401 || error.response?.status === 403)) {
-      await new Promise((resolve) => setTimeout(resolve, (retryCount + 1) * 500));
-      return getAccessTokenFromServer(skipCookieCheck, retryCount + 1);
+    const response = await fetch(`${BACKEND_URL}/api/auth/token`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as { accessToken: string };
+      return data.accessToken;
     }
-    
-    throw new Error(error.response?.data?.error || error.message || "Access Token 발급 실패");
+
+    // 모바일에서 쿠키가 아직 반영되지 않은 경우 재시도 (최대 3회)
+    if (retryCount < 3 && (response.status === 401 || response.status === 403)) {
+      await new Promise((resolve) => setTimeout(resolve, (retryCount + 1) * 500));
+      return getAccessTokenFromServer(retryCount + 1);
+    }
+
+    let errMsg = "Access Token 발급 실패";
+    try {
+      const errBody = (await response.json()) as { error?: string; message?: string };
+      errMsg = errBody.error || errBody.message || errMsg;
+    } catch {
+      // ignore
+    }
+
+    throw new Error(errMsg);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(error.message || "Access Token 발급 실패");
+    }
+    throw new Error("Access Token 발급 실패");
   }
 }
 
@@ -97,44 +101,72 @@ export async function refreshToken(): Promise<string> {
 export async function logout(): Promise<void> {
   try {
     await apiClient.post("/auth/logout");
-  } catch (error) {
+  } catch {
     // 리다이렉트로 인한 에러는 무시
     console.log("로그아웃 완료");
   } finally {
-    // 로컬 스토리지에서 토큰 제거
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("accessToken");
-    }
+    // 메모리 토큰 제거
+    setAccessToken(null);
   }
 }
 
 /**
- * Access Token 저장 (localStorage 및 전역 상태)
+ * Access Token 저장 (메모리 전용)
  */
 let accessTokenState: string | null = null;
 
 export function setAccessToken(token: string | null): void {
   accessTokenState = token;
-  if (typeof window !== "undefined") {
-    if (token) {
-      localStorage.setItem("accessToken", token);
-    } else {
-      localStorage.removeItem("accessToken");
-    }
-  }
 }
 
 /**
- * Access Token 가져오기 (localStorage 우선, 없으면 state)
+ * Access Token 가져오기 (메모리 전용)
  */
 export function getAccessToken(): string | null {
-  if (typeof window !== "undefined") {
-    // localStorage에서 먼저 확인
-    const token = localStorage.getItem("accessToken");
-    if (token) {
-      accessTokenState = token;
-      return token;
-    }
-  }
   return accessTokenState;
+}
+
+/**
+ * 로컬 회원가입 / 로그인 / ID/PW 찾기 API
+ */
+export async function registerWithCredentials(params: {
+  username: string;
+  email: string;
+  password: string;
+}): Promise<{ accessToken: string; user: User }> {
+  const response = await apiClient.post<{ accessToken: string; user: User }>(
+    "/auth/local/register",
+    params
+  );
+  const { accessToken, user } = response.data;
+  if (accessToken) {
+    setAccessToken(accessToken);
+  }
+  return { accessToken, user };
+}
+
+export async function loginWithCredentials(params: {
+  identifier: string;
+  password: string;
+}): Promise<{ accessToken: string; user: User }> {
+  const response = await apiClient.post<{ accessToken: string; user: User }>(
+    "/auth/local/login",
+    params
+  );
+  const { accessToken, user } = response.data;
+  if (accessToken) {
+    setAccessToken(accessToken);
+  }
+  return { accessToken, user };
+}
+
+export async function findIdByEmail(email: string): Promise<string | null> {
+  const response = await apiClient.post<{ username: string | null }>("/auth/local/find-id", {
+    email,
+  });
+  return response.data.username ?? null;
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await apiClient.post("/auth/local/find-password", { email });
 }

@@ -37,24 +37,25 @@ export class AuthController {
   @ApiExcludeEndpoint()
   @ApiOperation({
     summary: '카카오 로그인 시작',
-    description: '카카오 로그인 페이지로 리다이렉트합니다. 프론트엔드로 콜백되도록 설정되어 있습니다. prompt=login 파라미터로 항상 로그인 화면을 표시합니다.',
+    description:
+      '카카오 로그인 페이지로 리다이렉트합니다. 콜백은 백엔드(/api/auth/kakao/callback)로 설정되어 있으며, 이후 백엔드에서 로그인 처리 후 프론트엔드로 리다이렉트합니다.',
   })
   async kakaoAuth(@Res() res: Response) {
     // 환경변수 검증
     const clientID = process.env.KAKAO_CLIENT_ID;
-    const frontendUrl = process.env.FRONTEND_URL;
+    const backendUrl = process.env.BACKEND_URL;
     
     if (!clientID) {
       throw new BadRequestException('KAKAO_CLIENT_ID is not configured');
     }
     
-    if (!frontendUrl) {
-      throw new BadRequestException('FRONTEND_URL is not configured');
+    if (!backendUrl) {
+      throw new BadRequestException('BACKEND_URL is not configured');
     }
     
     // 카카오 로그인 URL 직접 생성 (prompt=login 명시적으로 추가)
-    // 콜백은 프론트엔드로 설정 (iOS 호환성)
-    const callbackURL = `${frontendUrl}/auth/kakao/callback`;
+    // 콜백은 백엔드로 설정
+    const callbackURL = `${backendUrl}/api/auth/kakao/callback`;
     
     // prompt=login: 항상 로그인 화면 표시 (자동 로그인 방지)
     const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${clientID}&redirect_uri=${encodeURIComponent(callbackURL)}&response_type=code&prompt=login`;
@@ -62,11 +63,48 @@ export class AuthController {
     res.redirect(kakaoAuthUrl);
   }
 
+  @Get('kakao/callback')
+  @Public()
+  @ApiExcludeEndpoint()
+  @ApiOperation({
+    summary: '카카오 로그인 콜백 (백엔드)',
+    description:
+      '카카오에서 전달한 authorization code로 로그인 처리를 수행하고 Refresh Token 쿠키를 설정한 뒤 프론트엔드로 리다이렉트합니다.',
+  })
+  async kakaoCallback(@Req() req: Request, @Res() res: Response) {
+    const code = (req.query['code'] as string) || '';
+
+    if (!code) {
+      throw new BadRequestException('Authorization code is required');
+    }
+
+    try {
+      const { refreshToken } = await this.authService.handleKakaoCode(code);
+
+      // Refresh Token만 쿠키에 저장 (보안 - HttpOnly로 XSS 방지)
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: true, // 항상 true
+        sameSite: 'none', // 항상 none
+        path: '/',
+        maxAge: 14 * 24 * 60 * 60 * 1000, // 14일
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const redirectUrl = `${frontendUrl}/?login=success`;
+      return res.redirect(redirectUrl);
+    } catch (error: any) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const redirectUrl = `${frontendUrl}/?login=error`;
+      return res.redirect(redirectUrl);
+    }
+  }
+
   @Post('kakao')
   @Public()
   @ApiOperation({
     summary: '카카오 로그인 처리',
-    description: '프론트엔드에서 받은 카카오 OAuth code를 처리하여 토큰을 발급합니다. iOS 호환성을 위해 프론트엔드에서 code를 받아서 호출하는 방식입니다.',
+    description: '프론트엔드에서 받은 카카오 OAuth code를 처리하여 토큰을 발급합니다. (현재 웹 플로우에서는 백엔드 콜백을 사용하므로, 주로 모바일/기타 클라이언트에서 사용 가능합니다.)',
   })
   @ApiBody({
     schema: {
@@ -138,6 +176,92 @@ export class AuthController {
       }
       throw new UnauthorizedException('Failed to authenticate with Kakao');
     }
+  }
+
+  @Post('local/register')
+  @Public()
+  @ApiOperation({
+    summary: '로컬 회원가입 (ID/PW)',
+    description: '카카오 로그인 외에 ID/비밀번호 기반 회원가입을 처리합니다.',
+  })
+  async registerLocal(
+    @Body() body: { username: string; email: string; password: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { username, email, password } = body;
+    const { accessToken, refreshToken, user } = await this.authService.registerLocal(
+      username,
+      email,
+      password,
+    );
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      path: '/',
+      maxAge: 14 * 24 * 60 * 60 * 1000,
+    });
+
+    return {
+      accessToken,
+      user,
+    };
+  }
+
+  @Post('local/login')
+  @Public()
+  @ApiOperation({
+    summary: '로컬 로그인 (ID/이메일 + PW)',
+    description: 'ID 또는 이메일과 비밀번호로 로그인합니다.',
+  })
+  async loginLocal(
+    @Body() body: { identifier: string; password: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { identifier, password } = body;
+    const { accessToken, refreshToken, user } = await this.authService.loginLocal(
+      identifier,
+      password,
+    );
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      path: '/',
+      maxAge: 14 * 24 * 60 * 60 * 1000,
+    });
+
+    return {
+      accessToken,
+      user,
+    };
+  }
+
+  @Post('local/find-id')
+  @Public()
+  @ApiOperation({
+    summary: 'ID 찾기 (이메일 기반)',
+    description: '이메일로 가입된 username(ID)를 조회합니다.',
+  })
+  async findId(@Body() body: { email: string }) {
+    return this.authService.findUsernameByEmail(body.email);
+  }
+
+  @Post('local/find-password')
+  @Public()
+  @ApiOperation({
+    summary: '비밀번호 찾기 요청',
+    description:
+      '이메일 기반 비밀번호 찾기 요청을 처리합니다. (데모용으로 실제 메일 발송 없이 성공 응답만 반환합니다.)',
+  })
+  async findPassword(@Body() body: { email: string }) {
+    await this.authService.requestPasswordReset(body.email);
+    return {
+      success: true,
+      message: '비밀번호 재설정 안내가 이메일로 전송되었다고 가정합니다.',
+    };
   }
 
   @Get('token')

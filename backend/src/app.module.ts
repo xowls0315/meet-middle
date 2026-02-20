@@ -31,29 +31,46 @@ import { FavoritesModule } from './favorites/favorites.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        const dbUrl = configService.get<string>('DB_URL');
+        const dbHost = configService.get<string>('DB_HOST');
+        const dbPort = Number(configService.get<string>('DB_PORT') || 5432);
+        const dbUsername = configService.get<string>('DB_USERNAME');
+        const dbPassword = configService.get<string>('DB_PASSWORD');
+        const dbDatabase = configService.get<string>('DB_DATABASE');
+        const dbSchema = configService.get<string>('DB_SCHEMA') || 'public';
         const isProduction = process.env.NODE_ENV === 'production';
 
-        // DB_URL 검증
-        if (!dbUrl) {
+        // DB 환경변수 검증
+        if (!dbHost || !dbUsername || !dbPassword || !dbDatabase) {
           throw new Error(
-            'DB_URL environment variable is required. Please set it in your .env file or Render environment variables.',
+            'DB environment variables are required (DB_HOST, DB_USERNAME, DB_PASSWORD, DB_DATABASE). Please set them in your .env file or Render environment variables.',
           );
         }
 
         const requireSSL = process.env.DB_SSL === 'true' || isProduction;
 
-        // DB_URL에서 SSL 요구사항 확인 (클라우드 DB는 대부분 SSL 필요)
+        // 호스트 기반 클라우드 DB 추정 (대부분 SSL 필요)
         const isCloudDB =
-          dbUrl?.includes('render.com') ||
-          dbUrl?.includes('neon.tech') ||
-          dbUrl?.includes('supabase.co') ||
-          dbUrl?.includes('railway.app') ||
-          dbUrl?.includes('herokuapp.com');
+          dbHost.includes('render.com') ||
+          dbHost.includes('neon.tech') ||
+          dbHost.includes('supabase.co') ||
+          dbHost.includes('railway.app') ||
+          dbHost.includes('herokuapp.com');
+
+        const escapedSearchPath = /^[A-Za-z_][A-Za-z0-9_]*$/.test(dbSchema)
+          ? dbSchema
+          : `"${dbSchema.replace(/"/g, '""')}"`;
 
         return {
           type: 'postgres',
-          url: dbUrl,
+          host: dbHost,
+          port: dbPort,
+          username: dbUsername,
+          password: dbPassword,
+          database: dbDatabase,
+          schema: dbSchema,
+          extra: {
+            options: `-c search_path=${escapedSearchPath}`,
+          },
           entities: [User, Share, Meeting, Favorite],
           synchronize: !isProduction, // 개발 환경에서만 자동 동기화
           logging: process.env.NODE_ENV === 'development',
