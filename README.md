@@ -3,8 +3,8 @@
 **2~4명의 출발지를 입력하면 최적의 만남 장소를 추천해드립니다**
 
 - 🌐 **프론트엔드 URL (Vercel)**: https://meet-middle-frontend.vercel.app
-- 🌐 **백엔드 URL (Render)**: https://meet-middle-backend.onrender.com
-- 📚 **API 문서**: https://meet-middle-backend.onrender.com/api
+- 🌐 **백엔드 URL (Render)**: https://meet-middle-backend-pdur.onrender.com
+- 📚 **API 문서 (Swagger)**: https://meet-middle-backend-pdur.onrender.com/api-docs
 
 ---
 
@@ -141,20 +141,25 @@ npm install
 #### 환경 변수 설정 (`backend/.env`)
 
 ```env
-# 개발 환경 (.env.development)
-NODE_ENV=
+# 개발 환경
+NODE_ENV=development
 PORT=3001
 
-# 데이터베이스
-DB_URL=postgresql://user:password@localhost:5432/meet_middle
-DB_SSL=true
+# 데이터베이스 (PostgreSQL)
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=your-username
+DB_PASSWORD=your-password
+DB_DATABASE=meet_middle
+DB_SCHEMA=public
+DB_SSL=false
 
 # 프론트엔드와 백엔드 서버
-BACKEND_URL=
-FRONTEND_URL=
+BACKEND_URL=http://localhost:3001
+FRONTEND_URL=http://localhost:3000
 
-# JWT
-JWT_SECRET=your-jwt-secret-key
+# JWT (32자 이상 권장)
+JWT_SECRET=your-jwt-secret-key-at-least-32-chars
 JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=14d
 
@@ -162,19 +167,18 @@ JWT_REFRESH_EXPIRES_IN=14d
 KAKAO_REST_KEY=your-kakao-rest-api-key
 KAKAO_CLIENT_ID=your-kakao-client-id
 KAKAO_CLIENT_SECRET=your-kakao-client-secret
-KAKAO_CALLBACK_URL=http://localhost:3001/auth/kakao/callback
 
-# 쿠키
-COOKIE_SECURE=true
+# 쿠키 (로컬 개발 시)
+COOKIE_SECURE=false
 COOKIE_SAMESITE=lax
-COOKIE_DOMAIN=localhost
 ```
 
-#### 데이터베이스 마이그레이션
+카카오 로그인 콜백은 백엔드 URL로 등록합니다. (`BACKEND_URL` + `/api/auth/kakao/callback`)
 
-```bash
-npm run typeorm:run-migrations
-```
+#### 데이터베이스 초기 설정
+
+PostgreSQL에 연결 후 `backend/database/final.sql`을 실행하여 테이블을 생성합니다.  
+(별도 스키마 사용 시 파일 상단 주석 참고)
 
 #### 개발 서버 실행
 
@@ -214,15 +218,18 @@ npm run dev
 1. [카카오 개발자 콘솔](https://developers.kakao.com/) 접속
 2. 애플리케이션 생성
 3. **플랫폼 설정**
-   - Web 플랫폼 추가: `http://localhost:3000`
+   - Web 플랫폼 추가: `http://localhost:3000` (로컬), 배포 시 프론트엔드 URL 추가
 4. **카카오 로그인 설정**
-   - Redirect URI: `http://localhost:3000/auth/kakao/callback`
+   - Redirect URI: **백엔드** 콜백 URL 등록
+     - 로컬: `http://localhost:3001/api/auth/kakao/callback`
+     - 배포: `https://meet-middle-backend-pdur.onrender.com/api/auth/kakao/callback`
 5. **API 키 발급**
-   - REST API 키
-   - JavaScript 키
-   - Client ID, Client Secret
+   - REST API 키 (KAKAO_REST_KEY, KAKAO_CLIENT_ID)
+   - JavaScript 키 (프론트엔드 카카오맵용)
+   - Client Secret (KAKAO_CLIENT_SECRET)
 
 ---
+
 ## 05. 기타 📚
 
 ### 📁 프로젝트 구조
@@ -265,10 +272,12 @@ meet-middle/
 ```
 users (사용자)
 ├── id (PK, UUID)
-├── kakaoId (UNIQUE)
+├── kakaoId (UNIQUE, nullable)
+├── username (UNIQUE, nullable)
 ├── nickname
 ├── profileImage
 ├── email
+├── passwordHash (nullable, 로컬 회원가입용)
 ├── refreshToken
 ├── createdAt
 └── updatedAt
@@ -300,6 +309,7 @@ favorites (즐겨찾기)
 ```
 
 **관계**:
+
 - `users` : `meetings` = 1 : N
 - `users` : `favorites` = 1 : N
 - `shares` : 독립적 (게스트/로그인 사용자 모두 사용 가능)
@@ -361,11 +371,12 @@ favorites (즐겨찾기)
 
 #### 6. Vercel 배포 시 useSearchParams 에러
 
-**문제**: Next.js 빌드 시 `useSearchParams()` Suspense 경계 필요 에러  
+**문제**: Next.js 14+ 빌드 시 `useSearchParams() should be wrapped in a suspense boundary` 에러 (404, /, /favorites, /history 등)  
 **해결**:
 
-- 콜백 페이지를 Suspense로 감싸기
-- `export const dynamic = "force-dynamic"` 설정
+- `useSearchParams()`를 사용하는 컴포넌트(또는 그 훅을 쓰는 페이지)를 `<Suspense>`로 감싸기
+- 루트 레이아웃의 Header, 메인/즐겨찾기/기록 페이지를 각각 Suspense로 감싼 구조로 수정
+- 카카오 콜백 페이지: `export const dynamic = "force-dynamic"` 및 내부 콘텐츠를 Suspense로 감싸기
 
 ### 💭 프로젝트 후기
 
@@ -442,6 +453,7 @@ favorites (즐겨찾기)
 ## 👤 개발자
 
 팀 프로젝트로 개발되었습니다.
+
 <table width="100%" style="border-collapse: collapse; text-align: center;">
 <thead>
 <tr>
@@ -461,4 +473,3 @@ Backend<br>
 </tr>
 </thead>
 </table>
-
