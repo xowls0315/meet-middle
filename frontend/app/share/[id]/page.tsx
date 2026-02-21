@@ -26,6 +26,7 @@ export default function SharePage({ params }: SharePageProps) {
   const [shareData, setShareData] = useState<ShareData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [mapFocusPlace, setMapFocusPlace] = useState<Place | null>(null);
 
   // 백엔드 API 호출
   useEffect(() => {
@@ -110,10 +111,10 @@ export default function SharePage({ params }: SharePageProps) {
         const categoryResult = hasCategoryResults && selectedCategory
           ? shareData.categoryResults![selectedCategory]
           : null;
-        const displayFinal = categoryResult?.final ?? shareData.final;
         const displayCandidates = categoryResult?.candidates ?? shareData.candidates ?? [];
         const displayUsed = categoryResult?.used ?? shareData.used;
         const categoryNames: Record<string, string> = { SW8: "지하철역", CT1: "문화시설", PO3: "공공기관", AT4: "관광명소" };
+        const sharedFinal = shareData.final;
 
         return (
           <div className="grid md:grid-cols-2 gap-6 mb-6">
@@ -135,8 +136,9 @@ export default function SharePage({ params }: SharePageProps) {
                   })) || []
                 }
                 anchor={shareData.anchor}
-                finalPlace={displayFinal ?? undefined}
+                finalPlace={sharedFinal ?? undefined}
                 candidates={displayCandidates}
+                focusPlace={mapFocusPlace ?? undefined}
                 readOnly={true}
               />
             </div>
@@ -155,7 +157,10 @@ export default function SharePage({ params }: SharePageProps) {
                     return (
                       <button
                         key={cat.code}
-                        onClick={() => setSelectedCategory(cat.code)}
+                        onClick={() => {
+                          setSelectedCategory(cat.code);
+                          setMapFocusPlace(null);
+                        }}
                         disabled={!hasResults}
                         className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
                           selectedCategory === cat.code
@@ -172,15 +177,15 @@ export default function SharePage({ params }: SharePageProps) {
                 </div>
               )}
 
-              {/* 최종 추천 */}
-              {displayFinal && (
+              {/* 최종 추천 (공유된 장소 고정, 카테고리 변경해도 바뀌지 않음) */}
+              {sharedFinal && (
                 <div className="mb-4">
-                  {hasCategoryResults && selectedCategory && (
+                  {hasCategoryResults && shareData.selectedCategoryCode && (
                     <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold mb-2">
-                      {categoryNames[selectedCategory] ?? selectedCategory}
+                      {categoryNames[shareData.selectedCategoryCode] ?? shareData.selectedCategoryCode}
                     </span>
                   )}
-                  <ResultCard place={displayFinal} isFinal />
+                  <ResultCard place={sharedFinal} isFinal />
                 </div>
               )}
 
@@ -194,13 +199,22 @@ export default function SharePage({ params }: SharePageProps) {
                 </div>
               )}
 
-              {/* 후보 리스트 */}
+              {/* 후보 리스트 - 클릭 시 지도가 해당 장소로 이동 */}
               {displayCandidates.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-slate-700 mb-3">다른 후보 ({displayCandidates.length}개)</h3>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {displayCandidates.map((candidate: Place) => (
-                      <ResultCard key={candidate.placeId} place={candidate} hideSelectButton />
+                      <div
+                        key={candidate.placeId}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setMapFocusPlace(candidate)}
+                        onKeyDown={(e) => e.key === "Enter" && setMapFocusPlace(candidate)}
+                        className="cursor-pointer rounded-xl border-2 border-transparent hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      >
+                        <ResultCard place={candidate} hideSelectButton />
+                      </div>
                     ))}
                   </div>
                 </div>

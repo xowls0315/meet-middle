@@ -23,6 +23,7 @@ interface MapAreaProps {
   anchor?: { lat: number; lng: number };
   finalPlace?: Place;
   candidates?: Place[];
+  focusPlace?: Place | null; // 지도 중심을 이 장소로 이동 (공유 페이지 후보 클릭 시)
   onCandidateSelect?: (place: Place) => void;
   readOnly?: boolean; // 읽기 전용 모드 (공유 페이지 등에서 사용)
 }
@@ -49,7 +50,7 @@ declare global {
   }
 }
 
-export default function MapArea({ participants, anchor, finalPlace, candidates = [], onCandidateSelect, readOnly = false }: MapAreaProps) {
+export default function MapArea({ participants, anchor, finalPlace, candidates = [], focusPlace, onCandidateSelect, readOnly = false }: MapAreaProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -376,6 +377,14 @@ export default function MapArea({ participants, anchor, finalPlace, candidates =
       overlaysRef.current = [];
     };
   }, [participants, anchor, finalPlace, candidates, hasData, onCandidateSelect, readOnly]);
+
+  // focusPlace 변경 시 지도 중심 이동 (공유 페이지에서 후보 클릭 시)
+  useEffect(() => {
+    if (!focusPlace || !mapInstance.current || typeof window === "undefined" || !window.kakao?.maps) return;
+    const position = new window.kakao.maps.LatLng(focusPlace.lat, focusPlace.lng);
+    mapInstance.current.setCenter(position);
+    mapInstance.current.setLevel(4);
+  }, [focusPlace]);
 
   // 지도가 표시될 때 크기 조정
   useEffect(() => {
