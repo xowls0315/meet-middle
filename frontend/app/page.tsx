@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import ParticipantInput from "@/_components/ui/ParticipantInput";
 import ResultCard from "@/_components/ui/ResultCard";
@@ -19,7 +19,7 @@ import { createMeeting } from "@/lib/api/meetings";
 import { createFavorite } from "@/lib/api/favorites";
 import { useAuth } from "@/hooks/useAuth";
 
-export default function Home() {
+function HomeContent() {
   const { isLoggedIn } = useAuth();
   const [participantCount, setParticipantCount] = useState<ParticipantCount>(2);
   const [participants, setParticipants] = useState<Participant[]>([
@@ -645,5 +645,13 @@ export default function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<RecommendResultSkeleton />}>
+      <HomeContent />
+    </Suspense>
   );
 }
