@@ -14,6 +14,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiBody,
   ApiBearerAuth,
   ApiCookieAuth,
 } from '@nestjs/swagger';
@@ -35,8 +36,9 @@ export class MeetingsController {
   @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '약속 기록 생성',
-    description: '약속 장소를 기록합니다.',
+    description: '추천받은 최종 장소와 참가자 정보를 저장합니다.',
   })
+  @ApiBody({ type: CreateMeetingDto })
   @ApiResponse({
     status: 201,
     description: '약속 기록 생성 성공',

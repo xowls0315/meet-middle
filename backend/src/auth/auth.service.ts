@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -74,7 +79,10 @@ export class AuthService {
     return `${salt}:${derivedKey.toString('hex')}`;
   }
 
-  private async verifyPassword(password: string, stored: string): Promise<boolean> {
+  private async verifyPassword(
+    password: string,
+    stored: string,
+  ): Promise<boolean> {
     const [salt, key] = stored.split(':');
     if (!salt || !key) {
       return false;
@@ -187,23 +195,28 @@ export class AuthService {
   /**
    * 카카오 OAuth code로 사용자 정보 가져오기 및 로그인 처리
    */
-  async handleKakaoCode(code: string): Promise<{ accessToken: string; refreshToken: string; user: any }> {
+  async handleKakaoCode(
+    code: string,
+  ): Promise<{ accessToken: string; refreshToken: string; user: any }> {
     const clientID = process.env.KAKAO_CLIENT_ID;
     const clientSecret = process.env.KAKAO_CLIENT_SECRET;
-    const frontendUrl = process.env.FRONTEND_URL;
+    const backendUrl = process.env.BACKEND_URL;
 
     // 환경변수 검증
     if (!clientID || !clientSecret) {
       this.logger.error('Kakao client credentials not configured');
-      throw new UnauthorizedException('Kakao client credentials not configured');
+      throw new UnauthorizedException(
+        'Kakao client credentials not configured',
+      );
     }
 
-    if (!frontendUrl) {
-      this.logger.error('FRONTEND_URL is not configured');
-      throw new UnauthorizedException('FRONTEND_URL is not configured');
+    if (!backendUrl) {
+      this.logger.error('BACKEND_URL is not configured');
+      throw new UnauthorizedException('BACKEND_URL is not configured');
     }
 
-    const redirectUri = `${frontendUrl}/auth/kakao/callback`;
+    // 카카오 토큰 교환 시 redirect_uri는 인증 시작 시와 동일해야 함 (auth.controller와 일치)
+    const redirectUri = `${backendUrl}/api/auth/kakao/callback`;
 
     try {
       // 1. 카카오 Access Token 발급
@@ -228,14 +241,20 @@ export class AuthService {
         this.logger.error(`Kakao token request failed: ${error.message}`);
         if (error.response?.data) {
           const errorData = error.response.data;
-          this.logger.error(`Kakao token API error: ${JSON.stringify(errorData)}`);
-          
+          this.logger.error(
+            `Kakao token API error: ${JSON.stringify(errorData)}`,
+          );
+
           // 구체적인 에러 메시지 제공
           if (errorData.error === 'invalid_grant') {
-            throw new UnauthorizedException('Invalid authorization code. The code may have expired or already been used.');
+            throw new UnauthorizedException(
+              'Invalid authorization code. The code may have expired or already been used.',
+            );
           }
           if (errorData.error === 'invalid_request') {
-            throw new UnauthorizedException(`Invalid request: ${errorData.error_description || 'Please check your redirect URI configuration'}`);
+            throw new UnauthorizedException(
+              `Invalid request: ${errorData.error_description || 'Please check your redirect URI configuration'}`,
+            );
           }
         }
         throw new UnauthorizedException('Failed to get Kakao access token');
@@ -250,20 +269,31 @@ export class AuthService {
       // 2. 카카오 사용자 정보 가져오기
       let userInfoResponse;
       try {
-        userInfoResponse = await axios.get('https://kapi.kakao.com/v2/user/me', {
-          headers: {
-            Authorization: `Bearer ${kakaoAccessToken}`,
+        userInfoResponse = await axios.get(
+          'https://kapi.kakao.com/v2/user/me',
+          {
+            headers: {
+              Authorization: `Bearer ${kakaoAccessToken}`,
+            },
+            params: {
+              property_keys: JSON.stringify([
+                'kakao_account.email',
+                'properties.nickname',
+                'properties.profile_image',
+              ]),
+            },
           },
-          params: {
-            property_keys: JSON.stringify(['kakao_account.email', 'properties.nickname', 'properties.profile_image']),
-          },
-        });
+        );
       } catch (error: any) {
         this.logger.error(`Kakao user info request failed: ${error.message}`);
         if (error.response?.data) {
-          this.logger.error(`Kakao user info API error: ${JSON.stringify(error.response.data)}`);
+          this.logger.error(
+            `Kakao user info API error: ${JSON.stringify(error.response.data)}`,
+          );
         }
-        throw new UnauthorizedException('Failed to get user information from Kakao');
+        throw new UnauthorizedException(
+          'Failed to get user information from Kakao',
+        );
       }
 
       const kakaoUserData = userInfoResponse?.data;
@@ -273,8 +303,14 @@ export class AuthService {
       }
 
       const kakaoId = kakaoUserData.id.toString();
-      const nickname = kakaoUserData.properties?.nickname || kakaoUserData.kakao_account?.profile?.nickname || '카카오사용자';
-      const profileImage = kakaoUserData.properties?.profile_image || kakaoUserData.kakao_account?.profile?.profile_image_url || null;
+      const nickname =
+        kakaoUserData.properties?.nickname ||
+        kakaoUserData.kakao_account?.profile?.nickname ||
+        '카카오사용자';
+      const profileImage =
+        kakaoUserData.properties?.profile_image ||
+        kakaoUserData.kakao_account?.profile?.profile_image_url ||
+        null;
       const email = kakaoUserData.kakao_account?.email || null;
 
       // 3. 사용자 정보로 로그인 처리
@@ -292,28 +328,47 @@ export class AuthService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      
+
       // 예상치 못한 에러
-      this.logger.error(`Unexpected error in handleKakaoCode: ${error.message}`, error.stack);
+      this.logger.error(
+        `Unexpected error in handleKakaoCode: ${error.message}`,
+        error.stack,
+      );
       throw new UnauthorizedException('Failed to authenticate with Kakao');
     }
   }
+
+  private readonly EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   /**
    * 로컬 회원가입 (ID/PW)
    */
   async registerLocal(username: string, email: string, password: string) {
     if (!username || !email || !password) {
-      throw new BadRequestException('username, email and password are required');
+      throw new BadRequestException(
+        'username, email and password are required',
+      );
     }
 
-    const existingByUsername = await this.userRepository.findOne({ where: { username } });
+    if (!this.EMAIL_REGEX.test(email)) {
+      throw new BadRequestException('올바른 이메일 형식이 아닙니다.');
+    }
+
+    if (password.length < 8) {
+      throw new BadRequestException('비밀번호는 8자 이상이어야 합니다.');
+    }
+
+    const existingByUsername = await this.userRepository.findOne({
+      where: { username },
+    });
     if (existingByUsername) {
       throw new BadRequestException('Username already in use');
     }
 
     if (email) {
-      const existingByEmail = await this.userRepository.findOne({ where: { email } });
+      const existingByEmail = await this.userRepository.findOne({
+        where: { email },
+      });
       if (existingByEmail) {
         throw new BadRequestException('Email already in use');
       }
@@ -362,7 +417,9 @@ export class AuthService {
    * ID 찾기 (이메일로 username 조회)
    * 실제 서비스라면 이메일 발송이 필요하지만, 여기서는 단순 조회만 반환
    */
-  async findUsernameByEmail(email: string): Promise<{ username: string | null }> {
+  async findUsernameByEmail(
+    email: string,
+  ): Promise<{ username: string | null }> {
     if (!email) {
       throw new BadRequestException('email is required');
     }
@@ -372,15 +429,64 @@ export class AuthService {
   }
 
   /**
-   * 비밀번호 찾기 요청 (stub)
-   * 실제 서비스에서는 리셋 토큰 발급 + 이메일 발송 등이 필요합니다.
+   * 비밀번호 찾기 1단계: 이메일로 가입된 로컬 계정 존재 여부 확인
    */
-  async requestPasswordReset(email: string): Promise<void> {
+  async verifyEmailForPasswordReset(
+    email: string,
+  ): Promise<{ success: boolean; message: string }> {
     if (!email) {
       throw new BadRequestException('email is required');
     }
-    // 여기서는 구현을 단순화하여 항상 성공 응답만 반환
-    return;
+
+    const user = await this.userRepository.findOne({ where: { email } });
+    if (!user || !user.passwordHash) {
+      return {
+        success: false,
+        message: '해당 이메일로 등록된 계정이 없습니다.',
+      };
+    }
+
+    return {
+      success: true,
+      message: '가입된 계정입니다. 새 비밀번호를 입력해 주세요.',
+    };
+  }
+
+  /**
+   * 비밀번호 재설정: 새 비밀번호로 DB 업데이트
+   */
+  async resetPassword(
+    email: string,
+    newPassword: string,
+    newPasswordConfirm: string,
+  ): Promise<{ success: boolean; message: string }> {
+    if (!email || !newPassword || !newPasswordConfirm) {
+      throw new BadRequestException(
+        'email, newPassword, newPasswordConfirm are required',
+      );
+    }
+
+    if (newPassword.length < 8) {
+      throw new BadRequestException('비밀번호는 8자 이상이어야 합니다.');
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      throw new BadRequestException(
+        '새 비밀번호와 비밀번호 확인이 일치하지 않습니다.',
+      );
+    }
+
+    const user = await this.userRepository.findOne({ where: { email } });
+    if (!user || !user.passwordHash) {
+      throw new BadRequestException('해당 이메일로 등록된 계정이 없습니다.');
+    }
+
+    const passwordHash = await this.hashPassword(newPassword);
+    await this.userRepository.update(user.id, { passwordHash });
+
+    return {
+      success: true,
+      message: '비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.',
+    };
   }
 }
-

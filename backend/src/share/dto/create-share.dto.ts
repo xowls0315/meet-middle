@@ -100,6 +100,23 @@ class ShareDataDto {
     category: string;
     radius: number;
   };
+
+  @ApiProperty({
+    description: '카테고리별 추천 결과 (SW8, CT1, PO3, AT4)',
+    example: { SW8: { final: {}, candidates: [], used: {} } },
+    required: false,
+  })
+  @IsOptional()
+  @IsObject()
+  categoryResults?: Record<
+    string,
+    { final?: object; candidates?: object[]; used?: { category: string; radius: number } }
+  >;
+
+  @ApiProperty({ description: '공유 시 선택된 카테고리 코드 (SW8, CT1, PO3, AT4)', required: false })
+  @IsOptional()
+  @IsString()
+  selectedCategoryCode?: string;
 }
 
 export class CreateShareDto {

@@ -167,6 +167,34 @@ export async function findIdByEmail(email: string): Promise<string | null> {
   return response.data.username ?? null;
 }
 
-export async function requestPasswordReset(email: string): Promise<void> {
-  await apiClient.post("/auth/local/find-password", { email });
+export type VerifyEmailForResetResponse = {
+  success: boolean;
+  message: string;
+};
+
+export async function verifyEmailForPasswordReset(
+  email: string
+): Promise<VerifyEmailForResetResponse> {
+  const response = await apiClient.post<VerifyEmailForResetResponse>(
+    "/auth/local/find-password/verify",
+    { email }
+  );
+  return response.data;
+}
+
+export type ResetPasswordResponse = {
+  success: boolean;
+  message: string;
+};
+
+export async function resetPassword(params: {
+  email: string;
+  newPassword: string;
+  newPasswordConfirm: string;
+}): Promise<ResetPasswordResponse> {
+  const response = await apiClient.post<ResetPasswordResponse>(
+    "/auth/local/find-password/reset",
+    params
+  );
+  return response.data;
 }

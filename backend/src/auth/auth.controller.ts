@@ -26,6 +26,18 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
 
+// 로컬 HTTP에서는 secure=false, sameSite=lax 사용 (쿠키 전송 허용)
+function getCookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: (isProd ? 'none' : 'lax') as 'lax' | 'none',
+    path: '/' as const,
+    maxAge: 14 * 24 * 60 * 60 * 1000,
+  };
+}
+
 @ApiTags('auth')
 @Controller('api/auth')
 @UseInterceptors(LoggingInterceptor)
@@ -81,15 +93,7 @@ export class AuthController {
     try {
       const { refreshToken } = await this.authService.handleKakaoCode(code);
 
-      // Refresh Token만 쿠키에 저장 (보안 - HttpOnly로 XSS 방지)
-      res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: true, // 항상 true
-        sameSite: 'none', // 항상 none
-        path: '/',
-        maxAge: 14 * 24 * 60 * 60 * 1000, // 14일
-      });
-
+      res.cookie('refresh_token', refreshToken, getCookieOptions());
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       const redirectUrl = `${frontendUrl}/?login=success`;
       return res.redirect(redirectUrl);
@@ -154,17 +158,7 @@ export class AuthController {
     try {
       const { accessToken, refreshToken, user } = await this.authService.handleKakaoCode(body.code);
 
-      // Refresh Token만 쿠키에 저장 (보안 - HttpOnly로 XSS 방지)
-      // 모바일 호환성을 위한 쿠키 설정: sameSite: 'none' + secure: true (프로덕션 환경)
-      res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: true,        // 항상 true
-        sameSite: 'none',    // 항상 none
-        path: '/',
-        maxAge: 14 * 24 * 60 * 60 * 1000, // 14일
-      });
-
-      // Access Token과 사용자 정보를 JSON으로 반환
+      res.cookie('refresh_token', refreshToken, getCookieOptions());
       // 프론트엔드에서 Access Token을 저장하고 사용
       return {
         accessToken,
@@ -182,8 +176,30 @@ export class AuthController {
   @Public()
   @ApiOperation({
     summary: '로컬 회원가입 (ID/PW)',
-    description: '카카오 로그인 외에 ID/비밀번호 기반 회원가입을 처리합니다.',
+    description: '카카오 로그인 외에 ID/비밀번호 기반 회원가입을 처리합니다. 비밀번호는 8자 이상이어야 합니다.',
   })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        username: { type: 'string', description: '로그인 아이디', example: 'user01' },
+        email: { type: 'string', format: 'email', description: '이메일 (ID/PW 찾기용)', example: 'user@example.com' },
+        password: { type: 'string', format: 'password', description: '비밀번호 (8자 이상)', example: 'password123' },
+      },
+      required: ['username', 'email', 'password'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: '회원가입 성공 (Refresh Token은 쿠키에 저장됨)',
+    schema: {
+      example: {
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        user: { id: '550e8400-e29b-41d4-a716-446655440000', nickname: 'user01', email: 'user@example.com' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: '잘못된 요청 (형식 오류, 중복 아이디/이메일, 비밀번호 8자 미만)' })
   async registerLocal(
     @Body() body: { username: string; email: string; password: string },
     @Res({ passthrough: true }) res: Response,
@@ -195,18 +211,8 @@ export class AuthController {
       password,
     );
 
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
-      maxAge: 14 * 24 * 60 * 60 * 1000,
-    });
-
-    return {
-      accessToken,
-      user,
-    };
+    res.cookie('refresh_token', refreshToken, getCookieOptions());
+    return { accessToken, user };
   }
 
   @Post('local/login')
@@ -215,6 +221,27 @@ export class AuthController {
     summary: '로컬 로그인 (ID/이메일 + PW)',
     description: 'ID 또는 이메일과 비밀번호로 로그인합니다.',
   })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        identifier: { type: 'string', description: '아이디 또는 이메일', example: 'user01' },
+        password: { type: 'string', format: 'password', description: '비밀번호', example: 'password123' },
+      },
+      required: ['identifier', 'password'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: '로그인 성공 (Refresh Token은 쿠키에 저장됨)',
+    schema: {
+      example: {
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        user: { id: '550e8400-e29b-41d4-a716-446655440000', nickname: 'user01', email: 'user@example.com' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: '아이디 또는 비밀번호 오류' })
   async loginLocal(
     @Body() body: { identifier: string; password: string },
     @Res({ passthrough: true }) res: Response,
@@ -225,18 +252,8 @@ export class AuthController {
       password,
     );
 
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
-      maxAge: 14 * 24 * 60 * 60 * 1000,
-    });
-
-    return {
-      accessToken,
-      user,
-    };
+    res.cookie('refresh_token', refreshToken, getCookieOptions());
+    return { accessToken, user };
   }
 
   @Post('local/find-id')
@@ -245,23 +262,95 @@ export class AuthController {
     summary: 'ID 찾기 (이메일 기반)',
     description: '이메일로 가입된 username(ID)를 조회합니다.',
   })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { email: { type: 'string', format: 'email', description: '가입 시 입력한 이메일', example: 'user@example.com' } },
+      required: ['email'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: '조회 결과',
+    schema: { type: 'object', properties: { username: { type: 'string', nullable: true, description: '등록된 아이디 (없으면 null)' } } },
+  })
+  @ApiResponse({ status: 400, description: 'email 필수' })
   async findId(@Body() body: { email: string }) {
     return this.authService.findUsernameByEmail(body.email);
   }
 
-  @Post('local/find-password')
+  @Post('local/find-password/verify')
   @Public()
   @ApiOperation({
-    summary: '비밀번호 찾기 요청',
-    description:
-      '이메일 기반 비밀번호 찾기 요청을 처리합니다. (데모용으로 실제 메일 발송 없이 성공 응답만 반환합니다.)',
+    summary: '비밀번호 찾기 1단계: 이메일 검증',
+    description: '해당 이메일로 가입된 로컬 계정 존재 여부를 확인합니다. 성공 시 2단계에서 새 비밀번호 입력 가능.',
   })
-  async findPassword(@Body() body: { email: string }) {
-    await this.authService.requestPasswordReset(body.email);
-    return {
-      success: true,
-      message: '비밀번호 재설정 안내가 이메일로 전송되었다고 가정합니다.',
-    };
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { email: { type: 'string', format: 'email', description: '가입 시 입력한 이메일', example: 'user@example.com' } },
+      required: ['email'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: '검증 결과',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string', example: '가입된 계정입니다. 새 비밀번호를 입력해 주세요.' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'email 필수' })
+  async verifyEmailForPasswordReset(@Body() body: { email: string }) {
+    return this.authService.verifyEmailForPasswordReset(body.email);
+  }
+
+  @Post('local/find-password/reset')
+  @Public()
+  @ApiOperation({
+    summary: '비밀번호 재설정',
+    description: '이메일 검증 후 새 비밀번호(8자 이상)로 변경합니다.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', description: '가입 이메일', example: 'user@example.com' },
+        newPassword: { type: 'string', format: 'password', description: '새 비밀번호 (8자 이상)', example: 'newpass123' },
+        newPasswordConfirm: { type: 'string', format: 'password', description: '새 비밀번호 확인', example: 'newpass123' },
+      },
+      required: ['email', 'newPassword', 'newPasswordConfirm'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: '비밀번호 변경 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string', example: '비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: '입력 오류(8자 미만, 비밀번호 불일치, 해당 이메일 계정 없음)' })
+  async resetPassword(
+    @Body()
+    body: {
+      email: string;
+      newPassword: string;
+      newPasswordConfirm: string;
+    },
+  ) {
+    const { email, newPassword, newPasswordConfirm } = body;
+    return this.authService.resetPassword(
+      email,
+      newPassword,
+      newPasswordConfirm,
+    );
   }
 
   @Get('token')
@@ -386,10 +475,8 @@ export class AuthController {
 
     // Refresh Token 쿠키 제거 (설정은 저장 시와 동일하게)
     res.clearCookie('refresh_token', {
-      httpOnly: true,
-      secure: true,        // 항상 true
-      sameSite: 'none',    // 항상 none
-      path: '/',
+      ...getCookieOptions(),
+      maxAge: 0,
     });
 
     // 카카오 로그아웃 URL 생성 및 직접 리다이렉트

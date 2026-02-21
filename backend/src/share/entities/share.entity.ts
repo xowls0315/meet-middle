@@ -45,6 +45,15 @@ export class Share {
       distance?: number;
     }>;
     used?: { category: string; radius: number };
+    categoryResults?: Record<
+      string,
+      {
+        final: { placeId: string; name: string; address: string; lat: number; lng: number; placeUrl?: string; distance?: number };
+        candidates: Array<{ placeId: string; name: string; address: string; lat: number; lng: number; placeUrl?: string; distance?: number }>;
+        used?: { category: string; radius: number };
+      }
+    >;
+    selectedCategoryCode?: string; // 공유 시 선택된 카테고리 (공유 페이지 기본 탭)
     userName?: string; // 로그인한 사용자가 공유한 경우 저장
   };
 

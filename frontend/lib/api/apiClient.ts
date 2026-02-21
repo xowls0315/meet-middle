@@ -18,16 +18,11 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (typeof window !== "undefined" && config.headers) {
-      // 공개 엔드포인트는 Authorization 헤더 불필요
-      const publicEndpoints = ["/search/suggest", "/recommend", "/share"];
-      const isPublicEndpoint = publicEndpoints.some((endpoint) => config.url?.includes(endpoint));
-
-      if (!isPublicEndpoint) {
-        // Access Token을 Authorization 헤더에 추가
-        const token = authApi.getAccessToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
+      // Access Token이 있으면 항상 Authorization 헤더 추가
+      // (공개 엔드포인트 /share도 로그인 시 닉네임 저장을 위해 토큰 전송 필요)
+      const token = authApi.getAccessToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
       }
     }
     return config;

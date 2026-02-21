@@ -52,6 +52,12 @@ export interface RecommendRequest {
   category?: CategoryCode; // 선택적 카테고리 파라미터
 }
 
+export interface CategoryShareResult {
+  final?: Place;
+  candidates?: Place[];
+  used?: { category: string; radius: number };
+}
+
 export interface ShareRequest {
   anchor?: { lat: number; lng: number };
   participants: Array<{
@@ -62,6 +68,10 @@ export interface ShareRequest {
   final?: Place;
   candidates?: Place[];
   used?: { category: string; radius: number };
+  /** 모든 카테고리별 추천 결과 (지하철역, 문화시설, 공공기관, 관광명소) */
+  categoryResults?: Record<string, CategoryShareResult>;
+  /** 공유 시 선택 중이던 카테고리 코드 (SW8, CT1, PO3, AT4) */
+  selectedCategoryCode?: string;
 }
 
 export interface ShareResponse {
@@ -79,6 +89,10 @@ export interface ShareData {
   final?: Place;
   candidates?: Place[];
   used?: { category: string; radius: number };
+  /** 카테고리별 추천 결과 (SW8, CT1, PO3, AT4) */
+  categoryResults?: Record<string, CategoryShareResult>;
+  /** 공유 시 선택된 카테고리 코드 (공유 페이지 기본 탭) */
+  selectedCategoryCode?: string;
   user?: {
     nickname: string;
   };

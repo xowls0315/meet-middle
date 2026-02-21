@@ -27,12 +27,21 @@ export interface Participant {
   lng: number;
 }
 
+export interface CategoryShareResult {
+  final: Place;
+  candidates: Place[];
+  used?: { category: string; radius: number };
+}
+
 export interface ShareData {
   anchor: { lat: number; lng: number };
   participants: Participant[];
   final: Place;
   candidates: Place[];
   used?: { category: string; radius: number };
+  categoryResults?: Record<string, CategoryShareResult>;
+  /** 공유 시 선택된 카테고리 코드 (공유 페이지 기본 탭) */
+  selectedCategoryCode?: string;
   user?: {
     nickname: string;
   };
@@ -78,7 +87,7 @@ export class ShareService {
    * 공유 데이터 정규화
    */
   private normalizeShareData(data: ShareData, userName?: string): ShareData & { userName?: string } {
-    return {
+    const normalized: ShareData & { userName?: string } = {
       ...data,
       anchor: this.normalizeCoordinates(data.anchor),
       participants: data.participants.map((p) => ({
@@ -86,9 +95,25 @@ export class ShareService {
         ...this.normalizeCoordinates(p),
       })),
       final: this.normalizePlace(data.final),
-      candidates: data.candidates.slice(0, MAX_CANDIDATES).map((c) => this.normalizePlace(c)),
+      candidates: (data.candidates ?? []).slice(0, MAX_CANDIDATES).map((c) => this.normalizePlace(c)),
       ...(userName && { userName }),
+      ...(data.selectedCategoryCode && { selectedCategoryCode: data.selectedCategoryCode }),
     };
+
+    if (data.categoryResults && typeof data.categoryResults === 'object') {
+      normalized.categoryResults = {};
+      for (const [code, cat] of Object.entries(data.categoryResults)) {
+        if (cat?.final) {
+          normalized.categoryResults[code] = {
+            final: this.normalizePlace(cat.final),
+            candidates: (cat.candidates ?? []).slice(0, MAX_CANDIDATES).map((c) => this.normalizePlace(c)),
+            used: cat.used,
+          };
+        }
+      }
+    }
+
+    return normalized;
   }
 
   /**
@@ -163,7 +188,7 @@ export class ShareService {
     }
 
     // 응답 데이터 구성
-    const { anchor, final, candidates, participants, userName } = share.data;
+    const { anchor, final, candidates, participants, userName, categoryResults, selectedCategoryCode } = share.data;
     
     // final 장소의 placeUrl이 없으면 생성
     const finalWithUrl = {
@@ -182,6 +207,8 @@ export class ShareService {
       final: finalWithUrl,
       ...(candidatesWithUrl && candidatesWithUrl.length > 0 && { candidates: candidatesWithUrl }),
       ...(participants?.length > 0 && { participants }),
+      ...(categoryResults && Object.keys(categoryResults).length > 0 && { categoryResults }),
+      ...(selectedCategoryCode && { selectedCategoryCode }),
       ...(userName && {
         user: {
           nickname: userName,

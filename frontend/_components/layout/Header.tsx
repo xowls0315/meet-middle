@@ -14,11 +14,18 @@ export default function Header() {
   const isGuidePage = pathname === "/guide";
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "register" | "findId" | "findPassword">("login");
+  const [authMode, setAuthMode] = useState<
+    "login" | "register" | "findId" | "findPassword"
+  >("login");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [findPasswordStep, setFindPasswordStep] = useState<"email" | "change">(
+    "email",
+  );
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -30,13 +37,18 @@ export default function Header() {
     setIsMenuOpen(false);
   };
 
-  const openAuthModal = (mode: "login" | "register" | "findId" | "findPassword" = "login") => {
+  const openAuthModal = (
+    mode: "login" | "register" | "findId" | "findPassword" = "login",
+  ) => {
     setAuthMode(mode);
     setAuthError(null);
     setIdentifier("");
     setPassword("");
     setUsername("");
     setEmail("");
+    setFindPasswordStep("email");
+    setNewPassword("");
+    setNewPasswordConfirm("");
     setIsAuthModalOpen(true);
   };
 
@@ -63,7 +75,17 @@ export default function Header() {
     }
   };
 
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   const handleRegister = async () => {
+    if (!EMAIL_REGEX.test(email)) {
+      setAuthError("올바른 이메일 형식이 아닙니다.");
+      return;
+    }
+    if (password.length < 8) {
+      setAuthError("비밀번호는 8자 이상이어야 합니다.");
+      return;
+    }
     try {
       setIsSubmitting(true);
       setAuthError(null);
@@ -102,12 +124,21 @@ export default function Header() {
     }
   };
 
-  const handleFindPassword = async () => {
+  const handleVerifyEmailForReset = async () => {
+    if (!EMAIL_REGEX.test(email)) {
+      setAuthError("올바른 이메일 형식을 입력해 주세요.");
+      return;
+    }
     try {
       setIsSubmitting(true);
       setAuthError(null);
-      await authApi.requestPasswordReset(email);
-      setAuthError("비밀번호 재설정 안내 메일이 발송되었다고 가정합니다.");
+      const result = await authApi.verifyEmailForPasswordReset(email);
+      if (result.success) {
+        setFindPasswordStep("change");
+        setAuthError(null);
+      } else {
+        setAuthError(result.message);
+      }
     } catch (error) {
       if (error instanceof Error) {
         setAuthError(error.message || "비밀번호 찾기에 실패했습니다.");
@@ -119,13 +150,58 @@ export default function Header() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (newPassword.length < 8) {
+      setAuthError("비밀번호는 8자 이상이어야 합니다.");
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setAuthError("새 비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      setAuthError(null);
+      const result = await authApi.resetPassword({
+        email,
+        newPassword,
+        newPasswordConfirm,
+      });
+      if (result.success) {
+        setAuthError(result.message);
+        setFindPasswordStep("email");
+        setAuthMode("login");
+        setNewPassword("");
+        setNewPasswordConfirm("");
+      } else {
+        setAuthError(result.message);
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        setAuthError(error.message || "비밀번호 변경에 실패했습니다.");
+      } else {
+        setAuthError("비밀번호 변경에 실패했습니다.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-blue-200/50 bg-white/80 backdrop-blur-md shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 cursor-pointer transition-all duration-500 hover:scale-105" onClick={closeMenu}>
-            <h1 className="text-xl sm:text-2xl font-bold gradient-text">Meet-Middle</h1>
-            <span className="text-xs sm:text-sm text-slate-600 hidden sm:inline">약속 장소 중간지점 추천</span>
+          <Link
+            href="/"
+            className="flex items-center gap-2 cursor-pointer transition-all duration-500 hover:scale-105"
+            onClick={closeMenu}
+          >
+            <h1 className="text-xl sm:text-2xl font-bold gradient-text">
+              Meet-Middle
+            </h1>
+            <span className="text-xs sm:text-sm text-slate-600 hidden sm:inline">
+              약속 장소 중간지점 추천
+            </span>
           </Link>
 
           {/* 데스크탑/태블릿 네비게이션 (sm 이상에서만 표시) */}
@@ -163,13 +239,19 @@ export default function Header() {
                 </Link>
                 <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-blue-50 rounded-full">
                   {user.profileImage ? (
-                    <img src={user.profileImage} alt={user.name} className="w-6 h-6 md:w-8 md:h-8 rounded-full" />
+                    <img
+                      src={user.profileImage}
+                      alt={user.name}
+                      className="w-6 h-6 md:w-8 md:h-8 rounded-full"
+                    />
                   ) : (
                     <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-xs md:text-sm">
                       {user.name?.[0] || "U"}
                     </div>
                   )}
-                  <span className="text-xs md:text-sm font-bold text-slate-700 hidden md:inline">{user.name || "사용자"}</span>
+                  <span className="text-xs md:text-sm font-bold text-slate-700 hidden md:inline">
+                    {user.name || "사용자"}
+                  </span>
                 </div>
                 <button
                   className="px-3 md:px-4 py-2 text-xs md:text-sm font-medium text-red-700 hover:text-red-800 bg-red-50 border border-red-200 rounded-full hover:bg-red-100 transition-all cursor-pointer"
@@ -194,13 +276,22 @@ export default function Header() {
             className="sm:hidden fixed top-2 right-4 z-[60] p-2 bg-white rounded-full shadow-lg border border-blue-200 hover:bg-blue-50 transition-all"
             aria-label="메뉴 열기"
           >
-            {isMenuOpen ? <IoCloseSharp className="w-6 h-6 text-slate-700" /> : <GiHamburgerMenu className="w-6 h-6 text-slate-700" />}
+            {isMenuOpen ? (
+              <IoCloseSharp className="w-6 h-6 text-slate-700" />
+            ) : (
+              <GiHamburgerMenu className="w-6 h-6 text-slate-700" />
+            )}
           </button>
         </div>
       </header>
 
       {/* 모바일 사이드바 오버레이 */}
-      {isMenuOpen && <div className="fixed inset-0 bg-black/50 z-[55] sm:hidden" onClick={closeMenu} />}
+      {isMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-[55] sm:hidden"
+          onClick={closeMenu}
+        />
+      )}
 
       {/* 모바일 사이드바 (sm 미만에서만 표시) */}
       <aside
@@ -211,7 +302,11 @@ export default function Header() {
         <div className="flex flex-col h-full p-6">
           {/* 닫기 버튼 */}
           <div className="flex justify-end mb-6">
-            <button onClick={closeMenu} className="p-2 bg-white rounded-full shadow-lg border border-blue-200 hover:bg-blue-50 transition-all" aria-label="메뉴 닫기">
+            <button
+              onClick={closeMenu}
+              className="p-2 bg-white rounded-full shadow-lg border border-blue-200 hover:bg-blue-50 transition-all"
+              aria-label="메뉴 닫기"
+            >
               <IoCloseSharp className="w-6 h-6 text-slate-700" />
             </button>
           </div>
@@ -227,11 +322,19 @@ export default function Header() {
                 {/* 프로필 */}
                 <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 rounded-lg border border-blue-200">
                   {user.profileImage ? (
-                    <img src={user.profileImage} alt={user.name} className="w-10 h-10 rounded-full" />
+                    <img
+                      src={user.profileImage}
+                      alt={user.name}
+                      className="w-10 h-10 rounded-full"
+                    />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-lg">{user.name?.[0] || "U"}</div>
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-lg">
+                      {user.name?.[0] || "U"}
+                    </div>
                   )}
-                  <span className="text-sm font-bold text-slate-700">{user.name || "사용자"}</span>
+                  <span className="text-sm font-bold text-slate-700">
+                    {user.name || "사용자"}
+                  </span>
                 </div>
 
                 {/* 가이드 */}
@@ -311,7 +414,9 @@ export default function Header() {
               <IoCloseSharp className="w-5 h-5 text-slate-600" />
             </button>
 
-            <h2 className="text-lg font-bold text-slate-800 mb-2">로그인 / 회원가입</h2>
+            <h2 className="text-lg font-bold text-slate-800 mb-2">
+              로그인 / 회원가입
+            </h2>
             <p className="text-xs text-slate-500 mb-4">
               카카오 간편 로그인 또는 이메일/비밀번호로 로그인할 수 있어요.
             </p>
@@ -356,7 +461,9 @@ export default function Header() {
               {authMode === "login" && (
                 <>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">아이디 또는 이메일</label>
+                    <label className="text-xs font-medium text-slate-700">
+                      아이디 또는 이메일
+                    </label>
                     <input
                       type="text"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
@@ -366,7 +473,9 @@ export default function Header() {
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">비밀번호</label>
+                    <label className="text-xs font-medium text-slate-700">
+                      비밀번호
+                    </label>
                     <input
                       type="password"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
@@ -375,7 +484,9 @@ export default function Header() {
                       onChange={(e) => setPassword(e.target.value)}
                     />
                   </div>
-                  {authError && <p className="text-xs text-red-600 mt-1">{authError}</p>}
+                  {authError && (
+                    <p className="text-xs text-red-600 mt-1">{authError}</p>
+                  )}
                   <button
                     className="w-full mt-1 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                     onClick={handleLocalLogin}
@@ -411,7 +522,9 @@ export default function Header() {
               {authMode === "register" && (
                 <>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">아이디</label>
+                    <label className="text-xs font-medium text-slate-700">
+                      아이디
+                    </label>
                     <input
                       type="text"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
@@ -421,7 +534,9 @@ export default function Header() {
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">이메일</label>
+                    <label className="text-xs font-medium text-slate-700">
+                      이메일
+                    </label>
                     <input
                       type="email"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
@@ -431,7 +546,9 @@ export default function Header() {
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">비밀번호</label>
+                    <label className="text-xs font-medium text-slate-700">
+                      비밀번호
+                    </label>
                     <input
                       type="password"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
@@ -440,7 +557,9 @@ export default function Header() {
                       onChange={(e) => setPassword(e.target.value)}
                     />
                   </div>
-                  {authError && <p className="text-xs text-red-600 mt-1">{authError}</p>}
+                  {authError && (
+                    <p className="text-xs text-red-600 mt-1">{authError}</p>
+                  )}
                   <button
                     className="w-full mt-1 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                     onClick={handleRegister}
@@ -454,7 +573,9 @@ export default function Header() {
               {authMode === "findId" && (
                 <>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">가입한 이메일</label>
+                    <label className="text-xs font-medium text-slate-700">
+                      가입한 이메일
+                    </label>
                     <input
                       type="email"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
@@ -463,7 +584,11 @@ export default function Header() {
                       onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
-                  {authError && <p className="text-xs text-blue-700 mt-1 whitespace-pre-line">{authError}</p>}
+                  {authError && (
+                    <p className="text-xs text-blue-700 mt-1 whitespace-pre-line">
+                      {authError}
+                    </p>
+                  )}
                   <button
                     className="w-full mt-1 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                     onClick={handleFindId}
@@ -476,24 +601,86 @@ export default function Header() {
 
               {authMode === "findPassword" && (
                 <>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-700">가입한 이메일</label>
-                    <input
-                      type="email"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
-                      placeholder="가입 시 입력한 이메일을 입력하세요"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  {authError && <p className="text-xs text-blue-700 mt-1 whitespace-pre-line">{authError}</p>}
-                  <button
-                    className="w-full mt-1 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                    onClick={handleFindPassword}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? "요청 중..." : "비밀번호 찾기"}
-                  </button>
+                  {findPasswordStep === "email" ? (
+                    <>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-slate-700">
+                          가입한 이메일
+                        </label>
+                        <input
+                          type="email"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                          placeholder="가입 시 입력한 이메일을 입력하세요"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
+                      </div>
+                      {authError && (
+                        <p className="text-xs text-red-600 mt-1">{authError}</p>
+                      )}
+                      <button
+                        className="w-full mt-1 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                        onClick={handleVerifyEmailForReset}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? "확인 중..." : "비밀번호 찾기"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-slate-500 mb-2">
+                        {email} 계정의 비밀번호를 변경합니다.
+                      </p>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-slate-700">
+                          새 비밀번호
+                        </label>
+                        <input
+                          type="password"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                          placeholder="새 비밀번호를 입력하세요 (8자 이상)"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-slate-700">
+                          새 비밀번호 확인
+                        </label>
+                        <input
+                          type="password"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                          placeholder="새 비밀번호를 다시 입력하세요"
+                          value={newPasswordConfirm}
+                          onChange={(e) =>
+                            setNewPasswordConfirm(e.target.value)
+                          }
+                        />
+                      </div>
+                      {authError && (
+                        <p className="text-xs text-red-600 mt-1">{authError}</p>
+                      )}
+                      <button
+                        className="w-full mt-1 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                        onClick={handleResetPassword}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? "변경 중..." : "비밀번호 변경"}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-slate-500 hover:text-blue-600 mt-1"
+                        onClick={() => {
+                          setFindPasswordStep("email");
+                          setAuthError(null);
+                          setNewPassword("");
+                          setNewPasswordConfirm("");
+                        }}
+                      >
+                        이메일 다시 입력
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -503,4 +690,3 @@ export default function Header() {
     </>
   );
 }
-

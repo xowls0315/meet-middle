@@ -192,13 +192,29 @@ export default function Home() {
           lng: p.selectedPlace!.lng,
         }));
 
-      // 백엔드 API 호출
+      // 카테고리별 결과 변환 (모든 카테고리 공유)
+      const categoryResultsData: Record<string, { final?: Place; candidates?: Place[]; used?: { category: string; radius: number } }> = {};
+      if (categoryResults.size > 0) {
+        categoryResults.forEach((catResult, code) => {
+          if (catResult?.final) {
+            categoryResultsData[code] = {
+              final: catResult.final,
+              candidates: catResult.candidates ?? [],
+              used: catResult.used,
+            };
+          }
+        });
+      }
+
+      // 백엔드 API 호출 (공유 시 선택된 카테고리를 함께 저장해 공유 페이지에서 동일 탭으로 표시)
       const shareResponse = await createShare({
         anchor: result.anchor,
         participants: participantsData,
         final: result.final,
-        candidates: result.candidates,
+        candidates: result.candidates ?? [],
         used: result.used,
+        ...(Object.keys(categoryResultsData).length > 0 && { categoryResults: categoryResultsData }),
+        ...(selectedCategory && { selectedCategoryCode: selectedCategory }),
       });
 
       // 백엔드에서 제공하는 URL이 있으면 사용, 없으면 프론트엔드 URL 생성
@@ -518,7 +534,11 @@ export default function Home() {
             {shareUrl && (
               <div className="flex-1 min-w-[200px] px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
                 <span className="text-sm text-blue-800 truncate mr-2">{shareUrl}</span>
-                <button onClick={() => navigator.clipboard.writeText(shareUrl)} className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap">
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(shareUrl)}
+                  className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 border border-blue-300 rounded-md whitespace-nowrap transition-all duration-150 hover:bg-blue-200 hover:border-blue-400 hover:shadow-sm active:scale-[0.97] active:bg-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+                >
                   복사
                 </button>
               </div>

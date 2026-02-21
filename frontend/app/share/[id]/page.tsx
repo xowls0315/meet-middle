@@ -9,6 +9,13 @@ import { Place, ShareData } from "@/types";
 import { getShare } from "@/lib/api/share";
 import { IoArrowBackOutline } from "react-icons/io5";
 
+const CATEGORIES = [
+  { code: "SW8", name: "지하철역" },
+  { code: "CT1", name: "문화시설" },
+  { code: "PO3", name: "공공기관" },
+  { code: "AT4", name: "관광명소" },
+] as const;
+
 interface SharePageProps {
   params: Promise<{ id: string }>;
 }
@@ -18,6 +25,7 @@ export default function SharePage({ params }: SharePageProps) {
   const [loading, setLoading] = useState(true);
   const [shareData, setShareData] = useState<ShareData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // 백엔드 API 호출
   useEffect(() => {
@@ -25,6 +33,16 @@ export default function SharePage({ params }: SharePageProps) {
       try {
         const data = await getShare(id);
         setShareData(data);
+        // 공유 시 선택된 카테고리를 기본 탭으로 사용, 없으면 used.category 또는 첫 번째 카테고리
+        if (data.categoryResults && Object.keys(data.categoryResults).length > 0) {
+          const preferred =
+            data.selectedCategoryCode && data.categoryResults[data.selectedCategoryCode]
+              ? data.selectedCategoryCode
+              : data.used?.category && data.categoryResults[data.used.category]
+                ? data.used.category
+                : Object.keys(data.categoryResults)[0];
+          setSelectedCategory(preferred);
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "공유 데이터를 불러올 수 없습니다.";
         setError(errorMessage);
@@ -87,67 +105,110 @@ export default function SharePage({ params }: SharePageProps) {
       </div>
 
       {/* 결과 영역 */}
-      <div className="grid md:grid-cols-2 gap-6 mb-6">
-        {/* 지도 */}
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 mb-4">지도</h2>
-          <MapArea
-            participants={
-              shareData.participants?.map((p: { label: string; lat: number; lng: number }) => ({
-                label: p.label,
-                query: "",
-                selectedPlace: {
-                  placeId: `participant-${p.label}`,
-                  name: `${p.label} 출발지`,
-                  address: "",
-                  lat: p.lat,
-                  lng: p.lng,
-                },
-              })) || []
-            }
-            anchor={shareData.anchor}
-            finalPlace={shareData.final}
-            candidates={shareData.candidates}
-            readOnly={true}
-          />
-        </div>
+      {(() => {
+        const hasCategoryResults = shareData.categoryResults && Object.keys(shareData.categoryResults).length > 0;
+        const categoryResult = hasCategoryResults && selectedCategory
+          ? shareData.categoryResults![selectedCategory]
+          : null;
+        const displayFinal = categoryResult?.final ?? shareData.final;
+        const displayCandidates = categoryResult?.candidates ?? shareData.candidates ?? [];
+        const displayUsed = categoryResult?.used ?? shareData.used;
+        const categoryNames: Record<string, string> = { SW8: "지하철역", CT1: "문화시설", PO3: "공공기관", AT4: "관광명소" };
 
-        {/* 결과 카드 */}
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 mb-4">추천 결과</h2>
-
-          {/* 최종 추천 */}
-          {shareData.final && (
-            <div className="mb-4">
-              <ResultCard place={shareData.final} isFinal />
-            </div>
-          )}
-
-          {/* 검색 정보 */}
-          {shareData.used && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="text-sm text-blue-800">
-                <span className="font-semibold">검색 범위:</span> {shareData.used.radius}m 반경, {shareData.used.category === "SW8" && "지하철역"}
-                {shareData.used.category === "CT1" && "문화시설"}
-                {shareData.used.category === "PO3" && "공공기관"}
-                {shareData.used.category === "AT4" && "관광명소"}
-              </p>
-            </div>
-          )}
-
-          {/* 후보 리스트 */}
-          {shareData.candidates && shareData.candidates.length > 0 && (
+        return (
+          <div className="grid md:grid-cols-2 gap-6 mb-6">
+            {/* 지도 */}
             <div>
-              <h3 className="text-lg font-semibold text-slate-700 mb-3">다른 후보 ({shareData.candidates.length}개)</h3>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {shareData.candidates.map((candidate: Place) => (
-                  <ResultCard key={candidate.placeId} place={candidate} hideSelectButton />
-                ))}
-              </div>
+              <h2 className="text-xl font-bold text-slate-800 mb-4">지도</h2>
+              <MapArea
+                participants={
+                  shareData.participants?.map((p: { label: string; lat: number; lng: number }) => ({
+                    label: p.label,
+                    query: "",
+                    selectedPlace: {
+                      placeId: `participant-${p.label}`,
+                      name: `${p.label} 출발지`,
+                      address: "",
+                      lat: p.lat,
+                      lng: p.lng,
+                    },
+                  })) || []
+                }
+                anchor={shareData.anchor}
+                finalPlace={displayFinal ?? undefined}
+                candidates={displayCandidates}
+                readOnly={true}
+              />
             </div>
-          )}
-        </div>
-      </div>
+
+            {/* 결과 카드 */}
+            <div>
+              <h2 className="text-xl font-bold text-slate-800 mb-4">추천 결과</h2>
+
+              {/* 카테고리 탭 (모든 카테고리 표시) */}
+              {hasCategoryResults && (
+                <div className="mb-6 flex flex-wrap gap-2">
+                  {CATEGORIES.map((cat) => {
+                    const hasResults =
+                      shareData.categoryResults![cat.code]?.final ||
+                      (shareData.categoryResults![cat.code]?.candidates?.length ?? 0) > 0;
+                    return (
+                      <button
+                        key={cat.code}
+                        onClick={() => setSelectedCategory(cat.code)}
+                        disabled={!hasResults}
+                        className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                          selectedCategory === cat.code
+                            ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md"
+                            : hasResults
+                            ? "bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 최종 추천 */}
+              {displayFinal && (
+                <div className="mb-4">
+                  {hasCategoryResults && selectedCategory && (
+                    <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold mb-2">
+                      {categoryNames[selectedCategory] ?? selectedCategory}
+                    </span>
+                  )}
+                  <ResultCard place={displayFinal} isFinal />
+                </div>
+              )}
+
+              {/* 검색 정보 */}
+              {displayUsed && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-semibold">검색 범위:</span> {displayUsed.radius}m 반경,{" "}
+                    {categoryNames[displayUsed.category ?? ""] ?? displayUsed.category}
+                  </p>
+                </div>
+              )}
+
+              {/* 후보 리스트 */}
+              {displayCandidates.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-700 mb-3">다른 후보 ({displayCandidates.length}개)</h3>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {displayCandidates.map((candidate: Place) => (
+                      <ResultCard key={candidate.placeId} place={candidate} hideSelectButton />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 액션 버튼 */}
       <div className="bg-white rounded-xl p-6 shadow-lg border-2 border-blue-200 text-center">

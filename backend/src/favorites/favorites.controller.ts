@@ -14,6 +14,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiBody,
   ApiBearerAuth,
   ApiCookieAuth,
 } from '@nestjs/swagger';
@@ -35,8 +36,9 @@ export class FavoritesController {
   @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '즐겨찾기 추가',
-    description: '장소를 즐겨찾기에 추가합니다.',
+    description: '장소를 즐겨찾기에 추가합니다. 동일 placeId는 한 번만 추가 가능합니다.',
   })
+  @ApiBody({ type: CreateFavoriteDto })
   @ApiResponse({
     status: 201,
     description: '즐겨찾기 추가 성공',

@@ -2,23 +2,32 @@
 -- 약속 장소 중간지점 추천 서비스 - PostgreSQL 스키마
 -- DBeaver 등에서 PostgreSQL DB에 연결 후 전체 실행
 -- (PostgreSQL 13+ 기본 함수 gen_random_uuid() 사용, 확장 불필요)
+--
+-- 별도 스키마 사용 시 (예: meet-middle):
+--   1) CREATE SCHEMA IF NOT EXISTS "meet-middle";
+--   2) SET search_path TO "meet-middle";
+--   3) 아래 테이블 생성문 실행
 -- ============================================
 
 -- ============================================
 -- 1. users 테이블 (사용자)
+-- 카카오 로그인 + 로컬(ID/PW) 회원가입 지원
 -- ============================================
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "kakaoId" VARCHAR(255) NOT NULL UNIQUE,
-    nickname VARCHAR(255) NOT NULL,
-    "profileImage" VARCHAR(500),
-    email VARCHAR(255),
+    "kakaoId" VARCHAR(255) NULL UNIQUE,
+    username VARCHAR(255) NULL UNIQUE,
+    nickname VARCHAR(255) NULL,
+    "profileImage" VARCHAR(500) NULL,
+    email VARCHAR(255) NULL,
+    "passwordHash" VARCHAR(500) NULL,
     "refreshToken" VARCHAR(500) NULL,
     "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_kakao_id ON users("kakaoId");
+CREATE INDEX IF NOT EXISTS idx_users_kakao_id ON users("kakaoId") WHERE "kakaoId" IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_refresh_token ON users("refreshToken") WHERE "refreshToken" IS NOT NULL;
 
 -- ============================================
@@ -62,7 +71,7 @@ CREATE TABLE IF NOT EXISTS favorites (
     address VARCHAR(500) NOT NULL,
     lat DECIMAL(10, 6) NOT NULL,
     lng DECIMAL(10, 6) NOT NULL,
-    "placeUrl" VARCHAR(500),
+    "placeUrl" VARCHAR(500) NULL,
     "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_favorites_user FOREIGN KEY ("userId")
         REFERENCES users(id)

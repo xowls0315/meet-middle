@@ -18,22 +18,22 @@ export class User {
     if (!this.id) this.id = uuidv4();
   }
 
-  @Column({ unique: true, nullable: true })
+  @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
   kakaoId: string | null;
 
-  @Column({ unique: true, nullable: true })
+  @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
   username: string | null;
 
-  @Column()
-  nickname: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  nickname: string | null;
 
-  @Column({ nullable: true })
-  profileImage: string;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  profileImage: string | null;
 
-  @Column({ nullable: true })
-  email: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  email: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
   passwordHash: string | null;
 
   @Column({ nullable: true, type: 'varchar' })

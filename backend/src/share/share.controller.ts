@@ -8,7 +8,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { ShareService } from './share.service';
+import { ShareService, ShareData } from './share.service';
 import { CreateShareDto } from './dto/create-share.dto';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
 import { Public } from '../auth/decorators/public.decorator';
@@ -51,7 +51,7 @@ export class ShareController {
   async createShare(@Body() createShareDto: CreateShareDto, @Req() req: Request) {
     // OptionalJwtAuthGuard가 토큰이 있으면 req.user에 사용자 정보 설정
     const user = req.user as { nickname?: string } | undefined;
-    return this.shareService.create(createShareDto.data, user?.nickname);
+    return this.shareService.create(createShareDto.data as ShareData, user?.nickname);
   }
 
   @Get(':id')

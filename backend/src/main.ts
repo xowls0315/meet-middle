@@ -75,6 +75,7 @@ async function bootstrap() {
     .addTag('share', '공유 링크 API')
     .addTag('meetings', '약속 기록 API')
     .addTag('favorites', '즐겨찾기 API')
+    .addTag('health', '서버 상태 API')
     .addBearerAuth(
       {
         type: 'http',
