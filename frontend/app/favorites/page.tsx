@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import ResultCard from "@/_components/ui/ResultCard";
 import Link from "next/link";
 import { FavoritesListSkeleton } from "@/_components/ui/skeleton/SkeletonList";
@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { IoHomeOutline } from "react-icons/io5";
 
-export default function FavoritesPage() {
+function FavoritesContent() {
   const { isLoggedIn, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [favorites, setFavorites] = useState<Place[]>([]);
@@ -93,5 +93,13 @@ export default function FavoritesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function FavoritesPage() {
+  return (
+    <Suspense fallback={<FavoritesListSkeleton />}>
+      <FavoritesContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import ResultCard from "@/_components/ui/ResultCard";
 import Link from "next/link";
 import { HistoryListSkeleton } from "@/_components/ui/skeleton/SkeletonList";
@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { IoHomeOutline } from "react-icons/io5";
 
-export default function HistoryPage() {
+function HistoryContent() {
   const { isLoggedIn, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -119,5 +119,13 @@ export default function HistoryPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function HistoryPage() {
+  return (
+    <Suspense fallback={<HistoryListSkeleton />}>
+      <HistoryContent />
+    </Suspense>
   );
 }
