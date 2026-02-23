@@ -1,16 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { User } from "@/types";
 import * as authApi from "@/lib/api/auth";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const isLoadingRef = useRef(false); // 중복 요청 방지
   const searchParams = useSearchParams();
+  const pathname = usePathname();
 
   // Access Token 복원 (새로고침 시)
   const restoreAccessToken = useCallback(async () => {
@@ -80,6 +81,11 @@ export function useAuth() {
   useEffect(() => {
     loadUser();
   }, [loadUser]);
+
+  // 라우트 변경 시 인증 상태 동기화 (로컬 로그인 후 토큰만 설정되고 loadUser가 호출되지 않는 경우 대비)
+  useEffect(() => {
+    loadUser();
+  }, [pathname, loadUser]);
 
   // 로그인
   const login = useCallback(() => {
