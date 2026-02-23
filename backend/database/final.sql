@@ -1,13 +1,14 @@
 -- ============================================
 -- 약속 장소 중간지점 추천 서비스 - PostgreSQL 스키마
--- DBeaver 등에서 PostgreSQL DB에 연결 후 전체 실행
+-- DBeaver / Supabase SQL Editor 등에서 전체 실행
 -- (PostgreSQL 13+ 기본 함수 gen_random_uuid() 사용, 확장 불필요)
 --
--- 별도 스키마 사용 시 (예: meet-middle):
---   1) CREATE SCHEMA IF NOT EXISTS "meet-middle";
---   2) SET search_path TO "meet-middle";
---   3) 아래 테이블 생성문 실행
+-- [기본] "meet-middle" 스키마에 테이블 생성 (Supabase 권장)
+--   → 아래 두 줄 그대로 두고 전체 Run
+-- [public 스키마 사용 시] 아래 CREATE SCHEMA, SET search_path 두 줄을 주석 처리 후 Run
 -- ============================================
+CREATE SCHEMA IF NOT EXISTS "meet-middle";
+SET search_path TO "meet-middle";
 
 -- ============================================
 -- 1. users 테이블 (사용자)
