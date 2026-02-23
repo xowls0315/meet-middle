@@ -34,6 +34,10 @@ export class SearchController {
     type: [PlaceDto],
   })
   @ApiResponse({
+    status: 400,
+    description: '검색어 누락 또는 2자 미만',
+  })
+  @ApiResponse({
     status: 429,
     description: '요청 한도 초과',
   })

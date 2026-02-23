@@ -94,7 +94,7 @@ async function bootstrap() {
     })
     .addServer('http://localhost:3001', '로컬 개발 서버')
     .addServer(
-      process.env.BACKEND_URL || 'https://your-backend-service.onrender.com',
+      process.env.BACKEND_URL || 'https://meet-middle-backend-pdur.onrender.com',
       '프로덕션 서버 (Render)',
     )
     .build();

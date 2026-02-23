@@ -73,6 +73,19 @@ export class FavoritesController {
   @ApiResponse({
     status: 200,
     description: '즐겨찾기 목록',
+    schema: {
+      example: [
+        {
+          placeId: '8241891',
+          name: '강남역',
+          address: '서울특별시 강남구 강남대로 396',
+          lat: 37.4981,
+          lng: 127.0276,
+          placeUrl: 'http://place.map.kakao.com/m/8241891',
+          createdAt: '2026-01-06T12:00:00.000Z',
+        },
+      ],
+    },
   })
   @ApiResponse({
     status: 401,
