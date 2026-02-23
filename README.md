@@ -69,11 +69,11 @@
 - 즐겨찾기 기능
 - 참가자별 장소 정보 포함
 
-### 6. 카카오 로그인
+### 6. 인증 (카카오 + 로컬)
 
-- OAuth 2.0 기반 소셜 로그인
-- iOS Safari 호환 콜백 처리
-- JWT 토큰 자동 갱신
+- **카카오 로그인**: OAuth 2.0 기반 소셜 로그인, iOS Safari 호환 콜백 처리
+- **로컬 로그인**: ID/비밀번호 회원가입·로그인, ID 찾기, 비밀번호 재설정
+- JWT 토큰 자동 갱신 (Access/Refresh)
 
 ---
 
@@ -172,6 +172,7 @@ KAKAO_CLIENT_SECRET=your-kakao-client-secret
 # 쿠키 (로컬 개발 시)
 COOKIE_SECURE=false
 COOKIE_SAMESITE=lax
+COOKIE_DOMAIN=localhost
 ```
 
 카카오 로그인 콜백은 백엔드 URL로 등록합니다. (`BACKEND_URL` + `/api/auth/kakao/callback`)
@@ -236,6 +237,17 @@ npm run dev
 
 ## 05. 기타 📚
 
+### 📌 참고 문서
+
+- **Supabase + UptimeRobot 설정**: [SUPABASE_UPTIMEROBOT_SETUP.md](./SUPABASE_UPTIMEROBOT_SETUP.md) — DB(Supabase) 및 무료 서버 웨이크업 설정 가이드
+
+### ⏱️ Uptime Monitoring (Render sleep 방지)
+
+- **UptimeRobot**으로 백엔드 URL을 **5분 간격**으로 핑(ping)하여 **Render 무료 플랜의 15분 sleep**을 방지합니다.
+- Render Web Service는 15분간 요청이 없으면 슬립 모드로 전환되며, 첫 요청 시 콜드 스타트로 응답이 지연됩니다. 5분마다 헬스 체크(`GET /` 또는 `GET /health`)를 보내면 서버가 깨어 있는 상태를 유지할 수 있습니다.
+- UptimeRobot 무료 플랜으로 모니터를 등록하고, **Monitor interval**을 **5 minutes**로 설정한 뒤 백엔드 URL(예: `https://meet-middle-backend-pdur.onrender.com`)을 감시 대상으로 추가하면 됩니다.
+- 상세 설정(Supabase DB 연동 포함)은 [SUPABASE_UPTIMEROBOT_SETUP.md](./SUPABASE_UPTIMEROBOT_SETUP.md)를 참고하세요.
+
 ### 📁 프로젝트 구조
 
 ```
@@ -259,13 +271,14 @@ meet-middle/
 │
 ├── backend/                  # NestJS 백엔드
 │   ├── src/
-│   │   ├── auth/             # 인증 모듈
+│   │   ├── auth/             # 인증 모듈 (카카오 OAuth, 로컬 회원가입/로그인)
 │   │   ├── search/           # 장소 검색 모듈
 │   │   ├── recommend/        # 추천 로직 모듈
 │   │   ├── share/            # 공유 모듈
 │   │   ├── meetings/         # 기록 모듈
 │   │   ├── favorites/        # 즐겨찾기 모듈
 │   │   └── kakao-local/      # 카카오 API 래퍼
+│   ├── database/             # DB 스키마 (final.sql)
 │   └── test/                 # 테스트 파일
 │
 └── README.md                 # 프로젝트 문서
@@ -381,6 +394,14 @@ favorites (즐겨찾기)
 - `useSearchParams()`를 사용하는 컴포넌트(또는 그 훅을 쓰는 페이지)를 `<Suspense>`로 감싸기
 - 루트 레이아웃의 Header, 메인/즐겨찾기/기록 페이지를 각각 Suspense로 감싼 구조로 수정
 - 카카오 콜백 페이지: `export const dynamic = "force-dynamic"` 및 내부 콘텐츠를 Suspense로 감싸기
+
+#### 7. 일반 계정 로그인 후 "이번 결과 저장"·"즐겨찾기 추가" 미동작
+
+**문제**: 로컬(ID/PW) 로그인 후 메인에서 "이번 결과 저장", "즐겨찾기 추가" 클릭 시 "로그인 후 사용 가능합니다" 알림만 뜨는 현상  
+**해결**:
+
+- 카카오 로그인은 리다이렉트 후 `?login=success`로 `loadUser()`가 다시 호출되나, 로컬 로그인은 토큰만 설정되고 `loadUser()`가 호출되지 않음
+- `useAuth` 훅에서 **라우트(pathname) 변경 시 `loadUser()` 호출**하도록 추가하여, 로컬 로그인 후 페이지 이동 시 인증 상태가 동기화되도록 수정
 
 ### 💭 프로젝트 후기
 
