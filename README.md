@@ -403,6 +403,26 @@ favorites (즐겨찾기)
 - 카카오 로그인은 리다이렉트 후 `?login=success`로 `loadUser()`가 다시 호출되나, 로컬 로그인은 토큰만 설정되고 `loadUser()`가 호출되지 않음
 - `useAuth` 훅에서 **라우트(pathname) 변경 시 `loadUser()` 호출**하도록 추가하여, 로컬 로그인 후 페이지 이동 시 인증 상태가 동기화되도록 수정
 
+#### 8. Kakao Local API 403 에러
+
+**문제**: 장소 자동완성(`/api/search/suggest`) 호출 시 Kakao Local API에서 `403 Forbidden` 에러가 발생해 검색 결과가 표시되지 않는 문제  
+**해결**:
+
+- 카카오 개발자 콘솔에서 **로컬(Local) API 사용 권한**이 비활성화되어 있거나, 잘못된 앱 키를 사용하는 경우 발생
+- 백엔드 `.env`에서 `KAKAO_REST_KEY`에 **REST API 키**를 정확히 설정하고, 해당 키에 로컬 API 권한이 활성화되어 있는지 확인
+- (테스트 환경) 도메인 제한이 있는 경우, 콘솔의 **플랫폼 → Web** 항목에 `http://localhost:3001` 또는 실제 백엔드 도메인을 등록
+
+#### 9. 카카오 로그인 Redirect URI 불일치 (KOE303)
+
+**문제**: 카카오 로그인 콜백에서 `{"error":"invalid_grant","error_description":"Redirect URI mismatch.","error_code":"KOE303"}` 에러가 발생하며 로그인이 실패하는 문제  
+**해결**:
+
+- 백엔드에서 카카오 토큰 요청 시 사용하는 콜백 URL은 `BACKEND_URL + "/api/auth/kakao/callback"` 형식으로 고정
+- 카카오 개발자 콘솔의 **카카오 로그인 → Redirect URI** 목록에, 아래 두 가지를 실제로 사용하는 값과 **완전히 동일하게** 등록
+  - 개발: `http://localhost:3001/api/auth/kakao/callback`
+  - 배포: `https://meet-middle-backend-pdur.onrender.com/api/auth/kakao/callback`
+- `.env` / Render 환경변수에서 `BACKEND_URL`과 `KAKAO_CLIENT_ID`가 올바른 프로젝트를 가리키는지 확인
+
 ### 💭 프로젝트 후기
 
 #### 성과
