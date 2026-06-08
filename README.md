@@ -398,10 +398,18 @@ favorites (즐겨찾기)
 #### 7. 일반 계정 로그인 후 "이번 결과 저장"·"즐겨찾기 추가" 미동작
 
 **문제**: 로컬(ID/PW) 로그인 후 메인에서 "이번 결과 저장", "즐겨찾기 추가" 클릭 시 "로그인 후 사용 가능합니다" 알림만 뜨는 현상  
+**원인**:
+
+- 카카오 로그인은 리다이렉트 후 `?login=success`로 `loadUser()`가 다시 호출되어 `isLoggedIn`·`user` 상태가 갱신됨
+- 로컬 로그인은 `loginWithCredentials()`가 **메모리의 accessToken만 설정**하고, `useAuth`의 React 상태는 그대로라 UI가 비로그인으로 남음
+
 **해결**:
 
-- 카카오 로그인은 리다이렉트 후 `?login=success`로 `loadUser()`가 다시 호출되나, 로컬 로그인은 토큰만 설정되고 `loadUser()`가 호출되지 않음
-- `useAuth` 훅에서 **라우트(pathname) 변경 시 `loadUser()` 호출**하도록 추가하여, 로컬 로그인 후 페이지 이동 시 인증 상태가 동기화되도록 수정
+- `Header`에서 로컬 로그인·회원가입 성공 직후 `reloadUser()`를 호출하여 `loadSession(force)`로 사용자 정보를 즉시 반영
+- `loadSession()`은 전역 캐시·in-flight dedupe를 사용하므로 Header·메인 페이지 등 여러 `useAuth()` 인스턴스가 동일한 세션을 공유
+- (이후 429 이슈 대응으로) pathname 변경마다 `loadUser()`를 호출하던 방식은 제거하고, 로컬 로그인 시에는 `reloadUser()` 명시 호출만 사용 (→ 10번 항목 참고)
+
+**관련 파일**: `frontend/_components/layout/Header.tsx`, `frontend/hooks/useAuth.ts`, `frontend/lib/api/auth.ts`
 
 #### 8. Kakao Local API 403 에러
 
@@ -422,6 +430,24 @@ favorites (즐겨찾기)
   - 개발: `http://localhost:3001/api/auth/kakao/callback`
   - 배포: `https://meet-middle-backend-pdur.onrender.com/api/auth/kakao/callback`
 - `.env` / Render 환경변수에서 `BACKEND_URL`과 `KAKAO_CLIENT_ID`가 올바른 프로젝트를 가리키는지 확인
+
+#### 10. 로그인 시 `/api/auth/token` 429 Too Many Requests 에러
+
+**문제**: 배포 환경(Vercel → Render)에서 로그인할 때마다 `GET /api/auth/token` 요청이 `429 Too Many Requests`로 실패하는 문제가 자주 발생  
+**원인**:
+
+- 백엔드 전역 `ThrottlerGuard`의 `medium` 규칙(분당 10회)이 인증 API에도 적용되어, 짧은 시간에 여러 요청이 몰리면 한도를 초과
+- 프론트엔드에서 `Header`, 메인 페이지 등 여러 컴포넌트가 각각 `useAuth()`를 호출하며 `/api/auth/token`을 **중복 요청**
+- (이전) pathname 변경 시마다 `loadUser()`가 재호출되어 페이지 이동·로그인 직후 요청이 더욱 증가
+
+**해결**:
+
+- **백엔드**: `app.module.ts`에 인증 전용 `auth` throttler(분당 120회) 추가, `auth.controller.ts`의 `token` / `me` / `refresh` 엔드포인트에 `@SkipThrottle({ short, medium })` + `@Throttle({ auth })` 적용
+- **프론트엔드**: `lib/api/auth.ts`에 `getAccessTokenFromServer()` in-flight dedupe 및 `loadSession()` 전역 세션 로드(캐시 포함) 추가로 중복 호출 방지
+- **프론트엔드**: `useAuth` 훅에서 pathname 변경 시 `loadUser()` 재호출 로직 제거, 로컬 로그인 후에는 `reloadUser()`로 세션 갱신
+- 429 응답은 `SilentRateLimitError`로 조용히 처리하여 콘솔 에러 스팸 방지
+
+**관련 파일**: `backend/src/app.module.ts`, `backend/src/auth/auth.controller.ts`, `frontend/lib/api/auth.ts`, `frontend/hooks/useAuth.ts`
 
 ### 💭 프로젝트 후기
 
