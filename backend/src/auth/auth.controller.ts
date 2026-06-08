@@ -16,7 +16,6 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
-  ApiCookieAuth,
   ApiExcludeEndpoint,
   ApiBody,
 } from '@nestjs/swagger';

@@ -16,7 +16,6 @@ import {
   ApiParam,
   ApiBody,
   ApiBearerAuth,
-  ApiCookieAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FavoritesService } from './favorites.service';
@@ -33,7 +32,6 @@ export class FavoritesController {
 
   @Post()
   @ApiBearerAuth('JWT-auth')
-  @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '즐겨찾기 추가',
     description: '장소를 즐겨찾기에 추가합니다. 동일 placeId는 한 번만 추가 가능합니다.',
@@ -65,7 +63,6 @@ export class FavoritesController {
 
   @Get()
   @ApiBearerAuth('JWT-auth')
-  @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '즐겨찾기 목록 조회',
     description: '사용자의 모든 즐겨찾기를 조회합니다.',
@@ -98,7 +95,6 @@ export class FavoritesController {
 
   @Delete(':placeId')
   @ApiBearerAuth('JWT-auth')
-  @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '즐겨찾기 삭제',
     description: '즐겨찾기에서 장소를 삭제합니다.',

@@ -81,17 +81,13 @@ async function bootstrap() {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        name: 'JWT',
-        description: 'Enter JWT token',
+        name: 'Authorization',
+        description:
+          '로그인 API(POST /api/auth/local/login 등) 응답의 accessToken을 입력하세요. Bearer 접두어는 붙이지 않아도 됩니다.',
         in: 'header',
       },
       'JWT-auth',
     )
-    .addCookieAuth('access_token', {
-      type: 'apiKey',
-      in: 'cookie',
-      name: 'access_token',
-    })
     .addServer('http://localhost:3001', '로컬 개발 서버')
     .addServer(
       process.env.BACKEND_URL || 'https://meet-middle-backend-pdur.onrender.com',

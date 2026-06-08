@@ -16,7 +16,6 @@ import {
   ApiParam,
   ApiBody,
   ApiBearerAuth,
-  ApiCookieAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MeetingsService } from './meetings.service';
@@ -33,7 +32,6 @@ export class MeetingsController {
 
   @Post()
   @ApiBearerAuth('JWT-auth')
-  @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '약속 기록 생성',
     description: '추천받은 최종 장소와 참가자 정보를 저장합니다.',
@@ -67,7 +65,6 @@ export class MeetingsController {
 
   @Get()
   @ApiBearerAuth('JWT-auth')
-  @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '약속 기록 목록 조회',
     description: '사용자의 모든 약속 기록을 조회합니다.',
@@ -108,7 +105,6 @@ export class MeetingsController {
 
   @Delete(':id')
   @ApiBearerAuth('JWT-auth')
-  @ApiCookieAuth('access_token')
   @ApiOperation({
     summary: '약속 기록 삭제',
     description: '약속 기록을 삭제합니다.',
