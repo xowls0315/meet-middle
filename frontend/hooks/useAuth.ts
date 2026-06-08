@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams, usePathname } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { User } from "@/types";
 import * as authApi from "@/lib/api/auth";
 
@@ -9,60 +9,22 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const isLoadingRef = useRef(false); // 중복 요청 방지
   const searchParams = useSearchParams();
-  const pathname = usePathname();
 
-  // Access Token 복원 (새로고침 시)
-  const restoreAccessToken = useCallback(async () => {
-    const existingToken = authApi.getAccessToken();
-    if (existingToken) {
-      // 토큰이 이미 있으면 사용
-      return existingToken;
-    }
-
-    try {
-      // Access Token이 없으면 Refresh Token(쿠키)로 발급받기
-      // Refresh Token은 HttpOnly 쿠키라 JS로 존재 여부를 확인할 수 없으므로,
-      // 서버에 요청해보고 실패(401/403)면 게스트로 판단합니다.
-      const newToken = await authApi.getAccessTokenFromServer();
-      authApi.setAccessToken(newToken);
-      return newToken;
-    } catch {
-      // Refresh Token도 없음 또는 만료됨 → 로그아웃 상태
-      // 401 에러는 게스트 모드이므로 조용히 처리
-      authApi.setAccessToken(null);
-      return null;
-    }
-  }, []);
-
-  // 사용자 정보 로드
-  const loadUser = useCallback(async () => {
-    // 이미 로딩 중이면 중복 요청 방지
-    if (isLoadingRef.current) {
-      return;
-    }
-
-    isLoadingRef.current = true;
-
+  const loadUser = useCallback(async (force = false) => {
     try {
       setIsLoading(true);
-      // 먼저 Access Token 복원 시도
-      const token = await restoreAccessToken();
+      const { user: userData } = await authApi.loadSession(force);
 
-      // 토큰이 없으면 게스트 모드이므로 사용자 정보 조회하지 않음
-      if (!token) {
+      if (!userData) {
         setIsLoggedIn(false);
         setUser(null);
         return;
       }
 
-      // Authorization 헤더와 함께 사용자 정보 조회
-      const userData = await authApi.getCurrentUser();
       setUser(userData);
       setIsLoggedIn(true);
     } catch (error) {
-      // 429 또는 401 에러는 조용히 처리 (콘솔 에러 출력하지 않음)
       if (error instanceof Error && (error.name === "SilentRateLimitError" || error.name === "SilentAuthError")) {
         // 조용히 처리
       } else {
@@ -73,19 +35,13 @@ export function useAuth() {
       authApi.setAccessToken(null);
     } finally {
       setIsLoading(false);
-      isLoadingRef.current = false;
     }
-  }, [restoreAccessToken]);
+  }, []);
 
-  // 초기 로드 (새로고침 시)
+  // 초기 로드 (앱 전역 loadSession으로 중복 요청 방지)
   useEffect(() => {
     loadUser();
   }, [loadUser]);
-
-  // 라우트 변경 시 인증 상태 동기화 (로컬 로그인 후 토큰만 설정되고 loadUser가 호출되지 않는 경우 대비)
-  useEffect(() => {
-    loadUser();
-  }, [pathname, loadUser]);
 
   // 로그인
   const login = useCallback(() => {
@@ -105,8 +61,6 @@ export function useAuth() {
   }, []);
 
   // 카카오 로그인 콜백 처리 (리다이렉트 후)
-  // iOS OAuth 콜백: 콜백 페이지(/auth/kakao/callback)에서 이미 토큰을 받아서 저장했으므로
-  // 여기서는 단순히 사용자 정보만 다시 로드하면 됩니다.
   useEffect(() => {
     const loginStatus = searchParams?.get("login");
 
@@ -114,21 +68,13 @@ export function useAuth() {
       const handleLoginSuccess = async () => {
         try {
           setIsLoading(true);
-
-          // 개발 환경: URL 파라미터에서 Access Token 추출 (선택적, 하위 호환)
           const urlToken = searchParams.get("access_token");
-
           if (urlToken) {
-            // 개발 환경: URL 파라미터에 Access Token이 있는 경우
             authApi.setAccessToken(urlToken);
           }
-          // iOS OAuth 콜백: 콜백 페이지에서 이미 토큰을 localStorage에 저장했으므로
-          // 별도로 토큰을 받을 필요 없이 사용자 정보만 로드
 
-          // 사용자 정보 다시 로드
-          await loadUser();
+          await loadUser(true);
 
-          // URL 정리 (보안)
           if (typeof window !== "undefined") {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
@@ -146,12 +92,16 @@ export function useAuth() {
     }
   }, [loadUser, searchParams]);
 
+  const reloadUser = useCallback(async () => {
+    await loadUser(true);
+  }, [loadUser]);
+
   return {
     user,
     isLoggedIn,
     isLoading,
     login,
     logout,
-    reloadUser: loadUser,
+    reloadUser,
   };
 }

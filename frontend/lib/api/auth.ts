@@ -26,6 +26,13 @@ export function startKakaoLogin(): void {
   }
 }
 
+/** 동시에 여러 컴포넌트가 토큰을 요청할 때 중복 호출 방지 */
+let tokenFetchPromise: Promise<string> | null = null;
+
+/** 세션(토큰 + 사용자) 로드 중복 방지 */
+let sessionLoadPromise: Promise<{ user: User | null }> | null = null;
+let cachedSession: { user: User | null } | null = null;
+
 /**
  * Access Token 발급 (Refresh Token 쿠키 사용)
  * - Refresh Token은 HttpOnly 쿠키라 JS로 존재 여부를 확인할 수 없음
@@ -34,7 +41,11 @@ export function startKakaoLogin(): void {
  * @returns Access Token
  */
 export async function getAccessTokenFromServer(retryCount: number = 0): Promise<string> {
-  try {
+  if (retryCount === 0 && tokenFetchPromise) {
+    return tokenFetchPromise;
+  }
+
+  const fetchToken = async (): Promise<string> => {
     const response = await fetch(`${BACKEND_URL}/api/auth/token`, {
       method: "GET",
       credentials: "include",
@@ -43,6 +54,12 @@ export async function getAccessTokenFromServer(retryCount: number = 0): Promise<
     if (response.ok) {
       const data = (await response.json()) as { accessToken: string };
       return data.accessToken;
+    }
+
+    if (response.status === 429) {
+      const silentError = new Error("Rate limit exceeded");
+      silentError.name = "SilentRateLimitError";
+      throw silentError;
     }
 
     // 모바일에서 쿠키가 아직 반영되지 않은 경우 재시도 (최대 3회)
@@ -60,12 +77,70 @@ export async function getAccessTokenFromServer(retryCount: number = 0): Promise<
     }
 
     throw new Error(errMsg);
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(error.message || "Access Token 발급 실패");
-    }
-    throw new Error("Access Token 발급 실패");
+  };
+
+  if (retryCount === 0) {
+    tokenFetchPromise = fetchToken().finally(() => {
+      tokenFetchPromise = null;
+    });
+    return tokenFetchPromise;
   }
+
+  return fetchToken();
+}
+
+/**
+ * 세션 로드 (토큰 복원 + 사용자 정보 조회, 전역 중복 요청 방지)
+ */
+export async function loadSession(force = false): Promise<{ user: User | null }> {
+  if (!force && cachedSession && getAccessToken()) {
+    return cachedSession;
+  }
+
+  if (sessionLoadPromise) {
+    return sessionLoadPromise;
+  }
+
+  sessionLoadPromise = (async () => {
+    const existingToken = getAccessToken();
+    if (existingToken) {
+      try {
+        const user = await getCurrentUser();
+        cachedSession = { user };
+        return { user };
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.name === "SilentAuthError" || error.name === "SilentRateLimitError")
+        ) {
+          return { user: null };
+        }
+        setAccessToken(null);
+      }
+    }
+
+    try {
+      const token = await getAccessTokenFromServer();
+      setAccessToken(token);
+      const user = await getCurrentUser();
+      cachedSession = { user };
+      return { user };
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === "SilentRateLimitError" || error.name === "SilentAuthError")
+      ) {
+        return { user: null };
+      }
+      setAccessToken(null);
+      cachedSession = null;
+      return { user: null };
+    }
+  })().finally(() => {
+    sessionLoadPromise = null;
+  });
+
+  return sessionLoadPromise;
 }
 
 /**
@@ -117,6 +192,9 @@ let accessTokenState: string | null = null;
 
 export function setAccessToken(token: string | null): void {
   accessTokenState = token;
+  if (!token) {
+    cachedSession = null;
+  }
 }
 
 /**

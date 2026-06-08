@@ -19,6 +19,7 @@ import {
   ApiExcludeEndpoint,
   ApiBody,
 } from '@nestjs/swagger';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -354,6 +355,8 @@ export class AuthController {
 
   @Get('token')
   @Public()
+  @SkipThrottle({ short: true, medium: true })
+  @Throttle({ auth: { limit: 120, ttl: 60000 } })
   @ApiOperation({
     summary: 'Access Token 발급',
     description: 'Refresh Token(쿠키)을 사용하여 Access Token을 발급받습니다. 로그인 직후 또는 Access Token 만료 시 사용합니다.',
@@ -386,6 +389,8 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @SkipThrottle({ short: true, medium: true })
+  @Throttle({ auth: { limit: 120, ttl: 60000 } })
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '현재 사용자 정보 조회',
@@ -419,6 +424,8 @@ export class AuthController {
 
   @Post('refresh')
   @Public()
+  @SkipThrottle({ short: true, medium: true })
+  @Throttle({ auth: { limit: 120, ttl: 60000 } })
   @ApiOperation({
     summary: 'Access Token 갱신',
     description: 'Refresh Token(쿠키)을 사용하여 새로운 Access Token을 발급받습니다.',

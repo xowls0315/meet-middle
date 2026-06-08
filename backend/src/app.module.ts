@@ -97,6 +97,11 @@ import { FavoritesModule } from './favorites/favorites.module';
         ttl: 60000, // 1분
         limit: 10, // recommend/share용
       },
+      {
+        name: 'auth',
+        ttl: 60000, // 1분
+        limit: 120, // token/me/refresh 등 인증 API
+      },
     ]),
     // 캐시 설정 (인메모리 캐시)
     CacheModule.registerAsync({
