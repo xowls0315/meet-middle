@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import ResultCard from "@/_components/ui/ResultCard";
+import ResultCard from "@/components/ui/ResultCard";
 import Link from "next/link";
-import { FavoritesListSkeleton } from "@/_components/ui/skeleton/SkeletonList";
+import { FavoritesListSkeleton } from "@/components/ui/skeleton/SkeletonList";
 import { Place } from "@/types";
 import { getFavorites, deleteFavorite } from "@/lib/api/favorites";
 import { useAuth } from "@/hooks/useAuth";

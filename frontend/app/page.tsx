@@ -2,10 +2,10 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import ParticipantInput from "@/_components/ui/ParticipantInput";
-import ResultCard from "@/_components/ui/ResultCard";
-import MapArea from "@/_components/ui/MapArea";
-import { RecommendResultSkeleton } from "@/_components/ui/skeleton/RecommendSkeleton";
+import ParticipantInput from "@/components/ui/ParticipantInput";
+import ResultCard from "@/components/ui/ResultCard";
+import MapArea from "@/components/ui/MapArea";
+import { RecommendResultSkeleton } from "@/components/ui/skeleton/RecommendSkeleton";
 import { BsSendArrowDown } from "react-icons/bs";
 import { HiOutlineSave } from "react-icons/hi";
 import { HiOutlineStar } from "react-icons/hi";

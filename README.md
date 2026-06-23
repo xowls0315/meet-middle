@@ -259,7 +259,7 @@ meet-middle/
 │   │   ├── history/          # 기록 페이지
 │   │   ├── favorites/        # 즐겨찾기 페이지
 │   │   └── share/            # 공유 페이지
-│   ├── _components/          # 컴포넌트
+│   ├── components/          # 컴포넌트
 │   │   ├── layout/           # 레이아웃 컴포넌트
 │   │   └── ui/               # UI 컴포넌트
 │   ├── lib/                  # 라이브러리
@@ -409,7 +409,7 @@ favorites (즐겨찾기)
 - `loadSession()`은 전역 캐시·in-flight dedupe를 사용하므로 Header·메인 페이지 등 여러 `useAuth()` 인스턴스가 동일한 세션을 공유
 - (이후 429 이슈 대응으로) pathname 변경마다 `loadUser()`를 호출하던 방식은 제거하고, 로컬 로그인 시에는 `reloadUser()` 명시 호출만 사용 (→ 10번 항목 참고)
 
-**관련 파일**: `frontend/_components/layout/Header.tsx`, `frontend/hooks/useAuth.ts`, `frontend/lib/api/auth.ts`
+**관련 파일**: `frontend/components/layout/Header.tsx`, `frontend/hooks/useAuth.ts`, `frontend/lib/api/auth.ts`
 
 #### 8. Kakao Local API 403 에러
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import ResultCard from "@/_components/ui/ResultCard";
+import ResultCard from "@/components/ui/ResultCard";
 import Link from "next/link";
-import { HistoryListSkeleton } from "@/_components/ui/skeleton/SkeletonList";
+import { HistoryListSkeleton } from "@/components/ui/skeleton/SkeletonList";
 import { Meeting } from "@/types";
 import { getMeetings, deleteMeeting } from "@/lib/api/meetings";
 import { useAuth } from "@/hooks/useAuth";

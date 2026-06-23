@@ -1,10 +1,10 @@
 "use client";
 
 import { use, useState, useEffect } from "react";
-import ResultCard from "@/_components/ui/ResultCard";
-import MapArea from "@/_components/ui/MapArea";
+import ResultCard from "@/components/ui/ResultCard";
+import MapArea from "@/components/ui/MapArea";
 import Link from "next/link";
-import { SharePageSkeleton } from "@/_components/ui/skeleton/SkeletonList";
+import { SharePageSkeleton } from "@/components/ui/skeleton/SkeletonList";
 import { Place, ShareData } from "@/types";
 import { getShare } from "@/lib/api/share";
 import { IoArrowBackOutline } from "react-icons/io5";
