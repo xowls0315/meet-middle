@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Suspense } from "react";
 import "../styles/globals.css";
 import Header from "@/components/layout/Header";
+import QueryProvider from "@/providers/QueryProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,10 +35,12 @@ export default function RootLayout({
     <html lang="ko">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {KAKAO_MAP_KEY && <Script src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false&libraries=services`} strategy="beforeInteractive" />}
-        <Suspense fallback={<header className="sticky top-0 z-50 w-full border-b border-blue-200/50 bg-white/80 backdrop-blur-md shadow-sm" />}>
-          <Header />
-        </Suspense>
-        <main className="min-h-screen pb-8">{children}</main>
+        <QueryProvider>
+          <Suspense fallback={<header className="sticky top-0 z-50 w-full border-b border-blue-200/50 bg-white/80 backdrop-blur-md shadow-sm" />}>
+            <Header />
+          </Suspense>
+          <main className="min-h-screen pb-8">{children}</main>
+        </QueryProvider>
       </body>
     </html>
   );

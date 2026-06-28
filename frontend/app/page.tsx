@@ -13,14 +13,21 @@ import { FaRegLightbulb } from "react-icons/fa6";
 import { MdRecommend } from "react-icons/md";
 import { VscBook } from "react-icons/vsc";
 import { Place, Participant, ParticipantCount, RecommendResponse } from "@/types";
-import { recommend } from "@/lib/api/recommend";
-import { createShare } from "@/lib/api/share";
-import { createMeeting } from "@/lib/api/meetings";
-import { createFavorite } from "@/lib/api/favorites";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  useRecommendAll,
+  useCreateShareLink,
+  useSaveMeeting,
+  useAddFavorite,
+  CATEGORIES,
+} from "@/hooks/queries/useHomeMutations";
 
 function HomeContent() {
   const { isLoggedIn } = useAuth();
+  const recommendMutation = useRecommendAll();
+  const createShareMutation = useCreateShareLink();
+  const saveMeetingMutation = useSaveMeeting();
+  const addFavoriteMutation = useAddFavorite();
   const [participantCount, setParticipantCount] = useState<ParticipantCount>(2);
   const [participants, setParticipants] = useState<Participant[]>([
     { label: "A", query: "", selectedPlace: null },
@@ -28,10 +35,10 @@ function HomeContent() {
   ]);
   const [result, setResult] = useState<RecommendResponse | null>(null);
   const [categoryResults, setCategoryResults] = useState<Map<string, RecommendResponse>>(new Map());
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // 선택된 카테고리
-  const [loading, setLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const loading = recommendMutation.isPending;
 
   // 참가자 수 변경
   const handleCountChange = (count: ParticipantCount) => {
@@ -95,7 +102,6 @@ function HomeContent() {
     }
   }, [selectedCategory, categoryResults]);
 
-  // 추천 받기
   const handleRecommend = async () => {
     const allSelected = participants.every((p) => p.selectedPlace);
     if (!allSelected) {
@@ -103,78 +109,37 @@ function HomeContent() {
       return;
     }
 
-    setLoading(true);
     setResult(null);
     setCategoryResults(new Map());
-    setSelectedCategory(null); // 카테고리 선택 초기화
+    setSelectedCategory(null);
     setShareUrl(null);
     setError(null);
 
+    const requestData = participants
+      .filter((p) => p.selectedPlace)
+      .map((p) => ({
+        label: p.label,
+        lat: p.selectedPlace!.lat,
+        lng: p.selectedPlace!.lng,
+      }));
+
     try {
-      // 참가자 좌표만 추출
-      const requestData = participants
-        .filter((p) => p.selectedPlace)
-        .map((p) => ({
-          label: p.label,
-          lat: p.selectedPlace!.lat,
-          lng: p.selectedPlace!.lng,
-        }));
-
-      // 4가지 카테고리별로 추천 받기
-      const categories = [
-        { code: "SW8", name: "지하철역" },
-        { code: "CT1", name: "문화시설" },
-        { code: "PO3", name: "공공기관" },
-        { code: "AT4", name: "관광명소" },
-      ];
-
-      const results = new Map<string, RecommendResponse>();
-      let firstResult: RecommendResponse | null = null;
-
-      // 모든 카테고리에 대해 병렬로 요청
-      await Promise.all(
-        categories.map(async (category) => {
-          try {
-            // 백엔드 API 호출 (카테고리 파라미터 전달)
-            const response = await recommend({
-              participants: requestData,
-              category: category.code as "SW8" | "CT1" | "PO3" | "AT4",
-            });
-            results.set(category.code, response);
-
-            // 첫 번째 결과를 기본 결과로 설정 (기존 호환성 유지)
-            if (!firstResult) {
-              firstResult = response;
-            }
-          } catch (error) {
-            console.error(`${category.name} 추천 오류:`, error);
-            // 일부 카테고리 실패해도 계속 진행
-          }
-        })
-      );
+      const { categoryResults: results, defaultCategory } = await recommendMutation.mutateAsync(requestData);
 
       setCategoryResults(results);
 
-      // 첫 번째 카테고리(지하철역)를 기본 선택으로 설정
-      if (results.size > 0) {
-        const defaultCategory = "SW8";
+      if (results.size > 0 && defaultCategory) {
         setSelectedCategory(defaultCategory);
-        // 기본 카테고리의 결과를 result에 설정
         const defaultResult = results.get(defaultCategory);
         if (defaultResult) {
           setResult(defaultResult);
-        } else if (firstResult) {
-          // 기본 카테고리에 결과가 없으면 첫 번째 결과 사용
-          setResult(firstResult);
         }
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "추천을 받는 중 오류가 발생했습니다.";
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "추천을 받는 중 오류가 발생했습니다.";
       setError(errorMessage);
       alert(errorMessage);
-      console.error("추천 오류:", error);
-    } finally {
-      setLoading(false);
+      console.error("추천 오류:", err);
     }
   };
 
@@ -207,7 +172,7 @@ function HomeContent() {
       }
 
       // 백엔드 API 호출 (공유 시 선택된 카테고리를 함께 저장해 공유 페이지에서 동일 탭으로 표시)
-      const shareResponse = await createShare({
+      const shareResponse = await createShareMutation.mutateAsync({
         anchor: result.anchor,
         participants: participantsData,
         final: result.final,
@@ -395,12 +360,7 @@ function HomeContent() {
             {/* 카테고리 선택 버튼 */}
             {categoryResults.size > 0 && (
               <div className="mb-6 flex flex-wrap gap-2">
-                {[
-                  { code: "SW8", name: "지하철역" },
-                  { code: "CT1", name: "문화시설" },
-                  { code: "PO3", name: "공공기관" },
-                  { code: "AT4", name: "관광명소" },
-                ].map((category) => {
+                {CATEGORIES.map((category) => {
                   const isSelected = selectedCategory === category.code;
                   const hasResults =
                     categoryResults.has(category.code) &&
@@ -552,7 +512,6 @@ function HomeContent() {
                   onClick={async () => {
                     if (!result?.final) return;
                     try {
-                      // 참가자 정보 추출 (표시용)
                       const participantsData = participants
                         .filter((p) => p.selectedPlace)
                         .map((p) => ({
@@ -561,18 +520,19 @@ function HomeContent() {
                           address: p.selectedPlace!.address,
                         }));
 
-                      await createMeeting({
+                      await saveMeetingMutation.mutateAsync({
                         final: result.final,
                         participantCount: participantsData.length,
                         participants: participantsData,
                       });
                       alert("결과가 저장되었습니다!");
-                    } catch (error) {
-                      const errorMessage = error instanceof Error ? error.message : "저장 중 오류가 발생했습니다.";
+                    } catch (err) {
+                      const errorMessage = err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.";
                       alert(errorMessage);
-                      console.error("저장 오류:", error);
+                      console.error("저장 오류:", err);
                     }
                   }}
+                  disabled={saveMeetingMutation.isPending}
                 >
                   <HiOutlineSave />
                   이번 결과 저장
@@ -583,7 +543,7 @@ function HomeContent() {
                   onClick={async () => {
                     if (!result?.final) return;
                     try {
-                      await createFavorite({
+                      await addFavoriteMutation.mutateAsync({
                         placeId: result.final.placeId,
                         name: result.final.name,
                         address: result.final.address,
@@ -592,17 +552,13 @@ function HomeContent() {
                         placeUrl: result.final.placeUrl,
                       });
                       alert("즐겨찾기에 추가되었습니다!");
-                    } catch (error) {
-                      const errorMessage = error instanceof Error ? error.message : "즐겨찾기 추가 중 오류가 발생했습니다.";
-                      // 409 에러는 이미 추가된 경우
-                      if (errorMessage.includes("이미")) {
-                        alert(errorMessage);
-                      } else {
-                        alert(errorMessage);
-                      }
-                      console.error("즐겨찾기 오류:", error);
+                    } catch (err) {
+                      const errorMessage = err instanceof Error ? err.message : "즐겨찾기 추가 중 오류가 발생했습니다.";
+                      alert(errorMessage);
+                      console.error("즐겨찾기 오류:", err);
                     }
                   }}
+                  disabled={addFavoriteMutation.isPending}
                 >
                   <HiOutlineStar />
                   즐겨찾기 추가

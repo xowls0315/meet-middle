@@ -1,50 +1,23 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { Suspense } from "react";
 import ResultCard from "@/components/ui/ResultCard";
 import Link from "next/link";
 import { FavoritesListSkeleton } from "@/components/ui/skeleton/SkeletonList";
-import { Place } from "@/types";
-import { getFavorites, deleteFavorite } from "@/lib/api/favorites";
-import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useFavorites, useDeleteFavorite } from "@/hooks/queries/useFavorites";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { IoHomeOutline } from "react-icons/io5";
 
 function FavoritesContent() {
-  const { isLoggedIn, isLoading: authLoading } = useAuth();
-  const router = useRouter();
-  const [favorites, setFavorites] = useState<Place[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // 백엔드 API 호출
-  useEffect(() => {
-    if (authLoading) return;
-
-    if (!isLoggedIn) {
-      alert("로그인이 필요한 페이지입니다.");
-      router.push("/");
-      return;
-    }
-
-    const fetchFavorites = async () => {
-      try {
-        const data = await getFavorites();
-        setFavorites(data);
-      } catch (err) {
-        console.error("즐겨찾기 조회 오류:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchFavorites();
-  }, [isLoggedIn, authLoading, router]);
+  const { user, isLoggedIn, isLoading: authLoading } = useRequireAuth();
+  const { data: favorites = [], isLoading } = useFavorites(user?.id);
+  const deleteFavoriteMutation = useDeleteFavorite();
 
   const handleRemove = async (placeId: string) => {
     if (!confirm("즐겨찾기에서 제거하시겠습니까?")) return;
+
     try {
-      await deleteFavorite(placeId);
-      setFavorites((prev) => prev.filter((f) => f.placeId !== placeId));
+      await deleteFavoriteMutation.mutateAsync(placeId);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.";
       alert(errorMessage);
@@ -52,9 +25,16 @@ function FavoritesContent() {
     }
   };
 
+  if (authLoading || (!isLoggedIn && !authLoading)) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <FavoritesListSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      {/* 헤더 */}
       <div className="mb-8">
         <Link
           href="/"
@@ -67,7 +47,7 @@ function FavoritesContent() {
         <p className="text-slate-600">자주 가는 장소를 저장해두세요</p>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <FavoritesListSkeleton />
       ) : favorites.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl border-2 border-blue-200">
@@ -82,7 +62,12 @@ function FavoritesContent() {
         <div className="grid md:grid-cols-2 gap-4">
           {favorites.map((favorite) => (
             <div key={favorite.placeId} className="bg-white rounded-xl p-6 shadow-lg border-2 border-blue-200 relative">
-              <button onClick={() => handleRemove(favorite.placeId)} className="absolute top-4 right-4 text-yellow-500 hover:text-yellow-600 transition-colors" title="즐겨찾기 제거">
+              <button
+                onClick={() => handleRemove(favorite.placeId)}
+                disabled={deleteFavoriteMutation.isPending}
+                className="absolute top-4 right-4 text-yellow-500 hover:text-yellow-600 transition-colors"
+                title="즐겨찾기 제거"
+              >
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
                 </svg>

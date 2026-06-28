@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Place, Participant } from "@/types";
+import { usePlaceSearch } from "@/hooks/queries/usePlaceSearch";
 
 interface ParticipantInputProps {
   participant: Participant;
@@ -12,62 +13,33 @@ interface ParticipantInputProps {
 
 export default function ParticipantInput({ participant, onChange, onSelectPlace, disabled = false }: ParticipantInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestions, setSuggestions] = useState<Place[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 백엔드 API 호출
-  const fetchSuggestions = async (query: string) => {
-    if (query.length < 2) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
+  const { suggestions, isLoading, error } = usePlaceSearch(participant.query);
 
-    setIsLoading(true);
-
-    // 디바운스 처리
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    debounceTimerRef.current = setTimeout(async () => {
-      try {
-        const { searchPlaces } = await import("@/lib/api/search");
-        const results = await searchPlaces(query);
-        setSuggestions(results);
-        setShowSuggestions(true);
-      } catch (error) {
-        console.error("장소 검색 오류:", error);
-        // 에러 발생 시 빈 배열로 설정
-        setSuggestions([]);
-        setShowSuggestions(false);
-        // 사용자에게 알림 (500 에러는 백엔드 문제이므로 조용히 처리)
-        if (error instanceof Error) {
-          if (error.message.includes("429")) {
-            alert("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
-          } else if (error.message.includes("500")) {
-            // 500 에러는 백엔드 문제이므로 사용자에게만 조용히 처리
-            console.error("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-          }
-        }
-      } finally {
-        setIsLoading(false);
+  useEffect(() => {
+    if (error instanceof Error) {
+      if (error.message.includes("429")) {
+        alert("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+      } else if (error.message.includes("500")) {
+        console.error("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
       }
-    }, 500);
-  };
+    }
+  }, [error]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     onChange(value);
 
-    // 선택된 장소가 있으면 초기화
     if (participant.selectedPlace) {
       onSelectPlace(null);
     }
 
-    fetchSuggestions(value);
+    if (value.length >= 2) {
+      setShowSuggestions(true);
+    } else {
+      setShowSuggestions(false);
+    }
   };
 
   const handleSelectPlace = (place: Place) => {
@@ -83,14 +55,6 @@ export default function ParticipantInput({ participant, onChange, onSelectPlace,
       setShowSuggestions(true);
     }
   };
-
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
 
   return (
     <div className="relative w-full">
@@ -131,7 +95,6 @@ export default function ParticipantInput({ participant, onChange, onSelectPlace,
         </div>
       </div>
 
-      {/* 자동완성 리스트 */}
       {showSuggestions && suggestions.length > 0 && !participant.selectedPlace && (
         <div className="absolute left-0 right-0 mt-2 bg-white border-2 border-blue-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
           {suggestions.map((suggestion) => (
@@ -148,7 +111,6 @@ export default function ParticipantInput({ participant, onChange, onSelectPlace,
         </div>
       )}
 
-      {/* 선택된 장소 정보 */}
       {participant.selectedPlace && (
         <div className="mt-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
           <div className="text-sm font-medium text-green-800">✓ {participant.selectedPlace.name}</div>
@@ -158,4 +120,3 @@ export default function ParticipantInput({ participant, onChange, onSelectPlace,
     </div>
   );
 }
-

@@ -1,44 +1,17 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { Suspense } from "react";
 import ResultCard from "@/components/ui/ResultCard";
 import Link from "next/link";
 import { HistoryListSkeleton } from "@/components/ui/skeleton/SkeletonList";
-import { Meeting } from "@/types";
-import { getMeetings, deleteMeeting } from "@/lib/api/meetings";
-import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useMeetings, useDeleteMeeting } from "@/hooks/queries/useMeetings";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { IoHomeOutline } from "react-icons/io5";
 
 function HistoryContent() {
-  const { isLoggedIn, isLoading: authLoading } = useAuth();
-  const router = useRouter();
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // 백엔드 API 호출
-  useEffect(() => {
-    if (authLoading) return;
-
-    if (!isLoggedIn) {
-      alert("로그인이 필요한 페이지입니다.");
-      router.push("/");
-      return;
-    }
-
-    const fetchMeetings = async () => {
-      try {
-        const data = await getMeetings();
-        setMeetings(data);
-      } catch (err) {
-        console.error("기록 조회 오류:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMeetings();
-  }, [isLoggedIn, authLoading, router]);
+  const { user, isLoggedIn, isLoading: authLoading } = useRequireAuth();
+  const { data: meetings = [], isLoading } = useMeetings(user?.id);
+  const deleteMeetingMutation = useDeleteMeeting();
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -51,9 +24,16 @@ function HistoryContent() {
     });
   };
 
+  if (authLoading || (!isLoggedIn && !authLoading)) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <HistoryListSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      {/* 헤더 */}
       <div className="mb-8">
         <Link
           href="/"
@@ -66,7 +46,7 @@ function HistoryContent() {
         <p className="text-slate-600">이전에 저장한 추천 결과를 확인할 수 있습니다</p>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <HistoryListSkeleton />
       ) : meetings.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl border-2 border-blue-200">
@@ -97,12 +77,12 @@ function HistoryContent() {
                   )}
                 </div>
                 <button
-                  className="text-md text-red-600 hover:text-red-700 font-medium cursor-pointer"
+                  className="text-md text-red-600 hover:text-red-700 font-medium cursor-pointer disabled:opacity-50"
+                  disabled={deleteMeetingMutation.isPending}
                   onClick={async () => {
                     if (!confirm("정말 삭제하시겠습니까?")) return;
                     try {
-                      await deleteMeeting(meeting.id);
-                      setMeetings((prev) => prev.filter((m) => m.id !== meeting.id));
+                      await deleteMeetingMutation.mutateAsync(meeting.id);
                     } catch (err) {
                       const errorMessage = err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.";
                       alert(errorMessage);
