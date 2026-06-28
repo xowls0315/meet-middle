@@ -42,8 +42,7 @@
 ### 1. 출발지 입력 및 자동완성
 
 - 2~4명의 출발지를 장소명으로 입력
-- 카카오 로컬 API를 활용한 실시간 자동완성
-- 디바운싱 적용으로 API 호출 최적화
+- 카카오 로컬 API를 활용한 실시간 자동완성 (TanStack Query + 500ms 디바운스·캐시)
 
 ### 2. 중간지점 계산 및 랜드마크 추천
 
@@ -86,6 +85,8 @@
 - **UI Library**: React 19.2.3
 - **Styling**: Tailwind CSS 4
 - **HTTP Client**: Axios 1.13.2
+- **Global State**: Zustand 5 (인증 상태 전역 관리)
+- **Server State**: TanStack Query 5 (API 데이터 캐싱·동기화)
 - **Icons**: React Icons 5.5.0
 - **Map**: Kakao Map JavaScript SDK
 - **배포**: Vercel
@@ -259,12 +260,25 @@ meet-middle/
 │   │   ├── history/          # 기록 페이지
 │   │   ├── favorites/        # 즐겨찾기 페이지
 │   │   └── share/            # 공유 페이지
-│   ├── components/          # 컴포넌트
-│   │   ├── layout/           # 레이아웃 컴포넌트
-│   │   └── ui/               # UI 컴포넌트
-│   ├── lib/                  # 라이브러리
-│   │   └── api/              # API 클라이언트
+│   ├── components/           # UI 컴포넌트
+│   │   ├── layout/           # Header 등 레이아웃
+│   │   └── ui/               # ParticipantInput, MapArea 등
+│   ├── stores/               # Zustand 전역 스토어
+│   │   └── authStore.ts      # 로그인 사용자·세션 상태
+│   ├── providers/            # React Context / Provider
+│   │   ├── QueryProvider.tsx # TanStack Query Client
+│   │   └── AuthInitializer.tsx # 앱 시작·카카오 콜백 시 세션 로드
 │   ├── hooks/                # 커스텀 훅
+│   │   ├── useAuth.ts        # authStore 래퍼 (logout 시 Query 캐시 삭제)
+│   │   ├── useRequireAuth.ts # 로그인 필수 페이지 가드
+│   │   └── queries/          # TanStack Query 훅
+│   │       ├── useFavorites.ts
+│   │       ├── useMeetings.ts
+│   │       ├── useShare.ts
+│   │       ├── usePlaceSearch.ts
+│   │       └── useHomeMutations.ts
+│   ├── lib/                  # 라이브러리
+│   │   └── api/              # API 클라이언트 (axios, auth)
 │   ├── types/                # TypeScript 타입
 │   ├── utils/                # 유틸리티 함수
 │   └── styles/               # 전역 스타일
@@ -283,6 +297,34 @@ meet-middle/
 │
 └── README.md                 # 프로젝트 문서
 ```
+
+### 🧠 프론트엔드 상태 관리
+
+| 종류 | 라이브러리 | 적용 위치 | 설명 |
+| --- | --- | --- | --- |
+| Local State | `useState` | 메인 추천 폼, 모달 UI, 지도 로딩 | 컴포넌트 내부 UI 상태 |
+| Global State | **Zustand** | `stores/authStore.ts` | `user`, `isLoggedIn` 전역 공유 (Header·페이지 동기화) |
+| Server State | **TanStack Query** | `hooks/queries/*` | 즐겨찾기·기록·공유·검색 API 캐싱 |
+| Auth Session | `lib/api/auth.ts` | 토큰 메모리·`loadSession()` dedupe | Refresh Token(HttpOnly 쿠키) 기반 세션 복원 |
+
+**Zustand (인증)**
+
+- `useAuth()`는 `authStore`를 구독하며, Header·메인·favorites/history가 **동일한 로그인 상태**를 공유합니다.
+- `providers/AuthInitializer.tsx`에서 앱 마운트 시 `loadUser()` 호출 및 카카오 `?login=success` 콜백 처리.
+
+**TanStack Query (서버 데이터)**
+
+| Query/Mutation | queryKey 예시 | 사용 페이지 |
+| --- | --- | --- |
+| 즐겨찾기 조회 | `["favorites", userId]` | `/favorites` |
+| 기록 조회 | `["meetings", userId]` | `/history` |
+| 공유 조회 | `["share", shareId]` | `/share/[id]` |
+| 장소 검색 | `["search", query]` | `ParticipantInput` (디바운스 500ms) |
+| 추천·저장·공유 생성 | mutation + `invalidateQueries` | `/` (메인) |
+
+- `providers/QueryProvider.tsx`에서 `QueryClientProvider` 설정 (`staleTime: 60초`).
+- 로그아웃 시 `clearUserQueries()`로 favorites·meetings 캐시 삭제.
+- 유저별 데이터는 **queryKey에 `userId` 포함**하여 계정 전환 시 데이터가 섞이지 않도록 처리.
 
 ### 🗄️ 데이터베이스 ERD
 
@@ -406,10 +448,10 @@ favorites (즐겨찾기)
 **해결**:
 
 - `Header`에서 로컬 로그인·회원가입 성공 직후 `reloadUser()`를 호출하여 `loadSession(force)`로 사용자 정보를 즉시 반영
-- `loadSession()`은 전역 캐시·in-flight dedupe를 사용하므로 Header·메인 페이지 등 여러 `useAuth()` 인스턴스가 동일한 세션을 공유
-- (이후 429 이슈 대응으로) pathname 변경마다 `loadUser()`를 호출하던 방식은 제거하고, 로컬 로그인 시에는 `reloadUser()` 명시 호출만 사용 (→ 10번 항목 참고)
+- **Zustand `authStore`**로 `user`·`isLoggedIn`을 전역 관리하여 Header·메인 페이지 등 모든 컴포넌트가 동일한 인증 상태를 공유
+- `loadSession()`은 in-flight dedupe로 중복 `/api/auth/token` 호출 방지
 
-**관련 파일**: `frontend/components/layout/Header.tsx`, `frontend/hooks/useAuth.ts`, `frontend/lib/api/auth.ts`
+**관련 파일**: `frontend/stores/authStore.ts`, `frontend/components/layout/Header.tsx`, `frontend/hooks/useAuth.ts`, `frontend/lib/api/auth.ts`
 
 #### 8. Kakao Local API 403 에러
 
@@ -443,11 +485,28 @@ favorites (즐겨찾기)
 **해결**:
 
 - **백엔드**: `app.module.ts`에 인증 전용 `auth` throttler(분당 120회) 추가, `auth.controller.ts`의 `token` / `me` / `refresh` 엔드포인트에 `@SkipThrottle({ short, medium })` + `@Throttle({ auth })` 적용
-- **프론트엔드**: `lib/api/auth.ts`에 `getAccessTokenFromServer()` in-flight dedupe 및 `loadSession()` 전역 세션 로드(캐시 포함) 추가로 중복 호출 방지
-- **프론트엔드**: `useAuth` 훅에서 pathname 변경 시 `loadUser()` 재호출 로직 제거, 로컬 로그인 후에는 `reloadUser()`로 세션 갱신
+- **프론트엔드**: `lib/api/auth.ts`에 `getAccessTokenFromServer()` in-flight dedupe 및 `loadSession()` 전역 세션 로드 추가
+- **프론트엔드**: Zustand `authStore` + `AuthInitializer`로 세션 로드 일원화, 로컬 로그인 후 `reloadUser()`로 갱신
 - 429 응답은 `SilentRateLimitError`로 조용히 처리하여 콘솔 에러 스팸 방지
 
-**관련 파일**: `backend/src/app.module.ts`, `backend/src/auth/auth.controller.ts`, `frontend/lib/api/auth.ts`, `frontend/hooks/useAuth.ts`
+**관련 파일**: `backend/src/app.module.ts`, `backend/src/auth/auth.controller.ts`, `frontend/lib/api/auth.ts`, `frontend/stores/authStore.ts`, `frontend/providers/AuthInitializer.tsx`
+
+#### 11. 계정 전환 시 이전 유저의 기록·즐겨찾기가 표시되는 문제
+
+**문제**: A 유저로 로그인 후 기록·즐겨찾기를 사용하고, B 유저로 로그인해도 A의 데이터가 그대로 보이는 현상  
+**원인**:
+
+- TanStack Query 도입 초기 queryKey가 `["favorites"]`, `["meetings"]`처럼 **유저 ID 없이** 동일하여 계정 간 캐시가 공유됨
+- 로그아웃 시 Query 캐시를 비우지 않아 이전 유저 데이터가 메모리에 남음
+- `staleTime: 60초` 동안은 캐시된 데이터를 재사용하여 잘못된 목록이 더 오래 표시될 수 있음
+
+**해결**:
+
+- queryKey에 `userId` 포함: `["favorites", userId]`, `["meetings", userId]`
+- `useAuth().logout()` 시 `clearUserQueries()`로 favorites·meetings 캐시 전부 삭제
+- `useFavorites(user?.id)`, `useMeetings(user?.id)`처럼 페이지에서 로그인 유저 ID를 query에 전달
+
+**관련 파일**: `frontend/hooks/queries/keys.ts`, `frontend/hooks/queries/clearUserQueries.ts`, `frontend/hooks/useAuth.ts`, `frontend/hooks/queries/useFavorites.ts`, `frontend/hooks/queries/useMeetings.ts`
 
 ### 💭 프로젝트 후기
 
@@ -456,7 +515,8 @@ favorites (즐겨찾기)
 - ✅ **무료 운영 목표 달성**: 캐싱 및 Rate Limit을 통해 카카오 API 쿼터를 효율적으로 관리
 - ✅ **반응형 디자인 완성**: 모바일부터 데스크탑까지 모든 환경에서 사용 가능
 - ✅ **사용자 경험 개선**: 자동완성, 지도 시각화, 공유 기능 등 편의성 향상
-- ✅ **안정적인 인증 시스템**: JWT 토큰 자동 갱신 및 iOS 호환성 확보
+- ✅ **안정적인 인증 시스템**: JWT 토큰 자동 갱신, iOS 호환성, Zustand 기반 전역 인증 상태
+- ✅ **효율적인 서버 상태 관리**: TanStack Query로 API 캐싱·mutation invalidation 적용
 
 #### 어려웠던 점
 
